@@ -1,0 +1,17 @@
+# Local test configuration (Listens on port 80/HTTP)
+:80 {
+    # Proxy API calls directly to Backend first (so /api/v1/ gets routed correctly)
+    reverse_proxy /api/v1/* web-backend:8000
+    
+    # Proxy everything else to Next.js Frontend
+    reverse_proxy * web-frontend:3000
+}
+
+# TO DEPLOY ON PUBLIC AWS WITH AUTOMATIC SSL (HTTPS):
+# 1. Point your custom domain (e.g. crm.yourcompany.com) to your EC2 public IP.
+# 2. Comment out the block above, uncomment the block below, and replace the domain.
+#
+# crm.yourcompany.com {
+#     reverse_proxy /api/v1/* web-backend:8000
+#     reverse_proxy * web-frontend:3000
+# }

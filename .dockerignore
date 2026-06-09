@@ -1,0 +1,17 @@
+prospects.db
+*.db
+*.sqlite
+*.xlsx
+*.tar.gz
+patch.tar.gz
+crm_minimal.tar.gz
+node_modules/
+frontend/node_modules/
+frontend/.next/
+.git/
+venv/
+__pycache__/
+.env
+.env.local
+.env.development
+.env.production

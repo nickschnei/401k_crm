@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crm-backend
+    restart: unless-stopped
+    volumes:
+      - ./prospects.db:/app/prospects.db
+      - ./Combined 401k Prospecting Plan.xlsx:/app/Combined 401k Prospecting Plan.xlsx
+      - ./extracted_data:/app/extracted_data
+    environment:
+      - DATABASE_URL=sqlite:////app/prospects.db
+      - ENVIRONMENT=production
+      - SECRET_KEY=change-this-to-a-secure-secret-key-123
+    ports:
+      - "8000:8000"
+
+  web-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: crm-frontend
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - BACKEND_URL=http://web-backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - web-backend
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: crm-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web-frontend
+      - web-backend
+
+volumes:
+  caddy_data:
+  caddy_config:

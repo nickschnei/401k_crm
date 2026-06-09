@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Databases and Celery SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Credentials & Key Files
+.env
+*.pem
+CRM-Key.pem
+CRM-key-pair.pem
+
+# Python Virtual Environment
+venv/
+env/
+.venv/
+
+# Node modules & Next.js builds (for frontend)
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Large Department of Labor (DOL) Datasets
+F_5500_*/
+F_SCH_*/
+*.zip
+extracted_data/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
