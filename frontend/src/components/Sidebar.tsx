@@ -20,9 +20,11 @@ import { useRouter } from 'next/navigation';
 
 interface SidebarProps {
   className?: string;
+  mobileOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ className = '' }: SidebarProps) {
+export default function Sidebar({ className = '', mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [width, setWidth] = React.useState(280);
@@ -91,13 +93,13 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   return (
     <div 
-      style={{ width: `${width}px` }}
-      className={`relative bg-[#0f172a]/70 backdrop-blur-xl border-r border-slate-800 flex flex-col h-screen text-slate-200 select-none ${className}`}
+      style={{ '--sidebar-width': `${width}px` } as React.CSSProperties}
+      className={`relative w-[280px] lg:w-[var(--sidebar-width)] bg-[#0f172a]/70 backdrop-blur-xl border-r border-slate-800 flex flex-col h-screen text-slate-200 select-none ${className}`}
     >
       {/* Resize Drag Handle */}
       <div 
         onMouseDown={startResizing}
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors z-50 select-none"
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors z-50 select-none hidden lg:block"
       />
 
       {/* Title / Brand Header */}
@@ -125,6 +127,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             <Link
               key={item.name}
               href={item.href}
+              onClick={onClose}
               className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 ${
                 isActive
                   ? 'bg-gradient-to-r from-blue-600/20 to-indigo-600/10 border border-blue-500/30 text-white shadow-inner shadow-blue-500/5'
@@ -166,7 +169,10 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             </div>
             <Link
               href="/billing"
-              onClick={() => setShowBillingMenu(false)}
+              onClick={() => {
+                setShowBillingMenu(false);
+                if (onClose) onClose();
+              }}
               className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/30 text-slate-300 hover:text-white transition-all duration-300"
             >
               <CreditCard className="h-4 w-4 text-blue-400 animate-pulse" />
@@ -208,7 +214,10 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
         {/* Logout Trigger */}
         <button
-          onClick={handleLogout}
+          onClick={() => {
+            handleLogout();
+            if (onClose) onClose();
+          }}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 border border-transparent hover:border-rose-500/10 transition-all duration-300 font-semibold text-xs cursor-pointer"
         >
           <LogOut className="h-4 w-4" />

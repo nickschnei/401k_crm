@@ -37,6 +37,24 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# Optimize SQLite performance with WAL and synchronous NORMAL
+from sqlalchemy import event
+
+if is_sqlite:
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
+    @event.listens_for(async_engine.sync_engine, "connect")
+    def set_sqlite_pragma_async(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
 Base = declarative_base()
 
 # FastAPI DB Session Dependencies

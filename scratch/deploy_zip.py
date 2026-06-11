@@ -11,9 +11,12 @@ zip_path = os.path.join(local_root, zip_name)
 # List of specific files to package
 files_to_package = [
     "api/audits.py",
+    "api/database.py",
     "api/prospects.py",
     "api/sync.py",
     "frontend/src/components/Sidebar.tsx",
+    "frontend/src/components/AppLayout.tsx",
+    "frontend/src/app/layout.tsx",
     "utils/audit_engine.py",
     "check_db.py",
     "diagnose_eins.py",
