@@ -54,6 +54,26 @@ async def run_startup_migrations():
         except Exception as e:
             print(f"[Migration] Auto-migration check warning: {e}")
 
+    # Seed default tenant prospects at startup if empty to eliminate first-load lazy sync delays
+    try:
+        from api.sync import sync_dol_data
+        from api.database import SessionLocal
+        from api.models import Prospect
+        
+        sync_db = SessionLocal()
+        try:
+            count = sync_db.query(Prospect).filter_by(tenant_id="default_tenant").count()
+            if count == 0:
+                print("[Startup] Default tenant prospects database is empty. Pre-seeding prospects...")
+                sync_dol_data(sync_db, target_tenant_id="default_tenant")
+                print("[Startup] Pre-seeding completed.")
+            else:
+                print("[Startup] Default tenant prospects already seeded.")
+        finally:
+            sync_db.close()
+    except Exception as e:
+        print(f"[Startup] Seeding prospects warning: {e}")
+
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(prospects.router, prefix="/api/v1/prospects", tags=["Prospects"])
 app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discovery"])

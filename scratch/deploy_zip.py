@@ -29,7 +29,8 @@ files_to_package = [
     "excel_debug.py",
     "excel_debug.txt",
     "run_sync_tenant.py",
-    "utils/fallback_5500.py"
+    "utils/fallback_5500.py",
+    "main.py"
 ]
 
 # List of folders to package completely

@@ -479,6 +479,18 @@ def sync_dol_data(db: Session, force_refresh: bool = False, target_tenant_id: st
 
             print(f"[Sync] Mapping {len(prospects_df)} excel contacts to system pipeline...")
             seen_prospects = {}
+            
+            # Pre-fetch matching Form5500Audits in bulk to avoid sub-queries in a loop
+            names_to_lookup = []
+            for _, row in prospects_df.iterrows():
+                name = str(row.get('Employer Name')).strip()
+                if name and name.lower() not in ["nan", "none", "company"]:
+                    names_to_lookup.append(name)
+                    names_to_lookup.append(name.upper())
+            
+            exact_matches = db.query(Form5500Audit).filter(Form5500Audit.employer_name.in_(names_to_lookup)).all()
+            exact_match_map = {m.employer_name.upper(): m.ein for m in exact_matches}
+            
             for _, row in prospects_df.iterrows():
                 employer_name = str(row.get('Employer Name')).strip()
                 if not employer_name or employer_name.lower() in ["nan", "none", "company"]:
@@ -489,19 +501,17 @@ def sync_dol_data(db: Session, force_refresh: bool = False, target_tenant_id: st
                     ein = normalize_ein(row.get('EIN'))
                 
                 if not ein:
-                    # Optimized lookup from Form5500Audit database
-                    # 1. Try exact match (sub-millisecond, uses index)
-                    audit_match = db.query(Form5500Audit).filter(Form5500Audit.employer_name == employer_name).first()
-                    if not audit_match:
-                        # 2. Try exact uppercase match
-                        audit_match = db.query(Form5500Audit).filter(Form5500Audit.employer_name == employer_name.upper()).first()
-                    if not audit_match:
-                        # 3. Try prefix match (fast, uses index)
-                        audit_match = db.query(Form5500Audit).filter(Form5500Audit.employer_name.like(f"{employer_name}%")).first()
+                    # 1. Try exact/uppercase match cache
+                    ein = exact_match_map.get(employer_name.upper())
                     
-                    if audit_match:
-                        ein = audit_match.ein
-                    else:
+                    # 2. Try prefix match in database if not in cache
+                    if not ein:
+                        audit_match = db.query(Form5500Audit).filter(Form5500Audit.employer_name.like(f"{employer_name}%")).first()
+                        if audit_match:
+                            ein = audit_match.ein
+                    
+                    # 3. Fallback to hash if still not resolved
+                    if not ein:
                         import hashlib
                         hash_obj = hashlib.md5(employer_name.encode('utf-8'))
                         ein = "".join(c for c in hash_obj.hexdigest() if c.isdigit())[:9].zfill(9)
