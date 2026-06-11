@@ -137,6 +137,10 @@ export const discoveryService = {
     industry?: string;
     provider?: string;
     administrator?: string;
+    state?: string;
+    schedule_type?: string;
+    asset_ranges?: string;
+    participant_ranges?: string;
   }) => {
     const response = await api.get<DiscoveryFiling[]>('/discovery/', { params });
     return response.data;

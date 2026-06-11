@@ -13,12 +13,15 @@ files_to_package = [
     "api/audits.py",
     "api/auth.py",
     "api/database.py",
+    "api/discovery.py",
     "api/prospects.py",
     "api/sync.py",
     "frontend/src/components/Sidebar.tsx",
     "frontend/src/components/AppLayout.tsx",
     "frontend/src/app/layout.tsx",
     "frontend/src/middleware.ts",
+    "frontend/src/services/api.ts",
+    "frontend/src/app/discovery/page.tsx",
     "utils/audit_engine.py",
     "utils/auth.py",
     "check_db.py",
@@ -143,9 +146,9 @@ def extract_and_restart():
     
     print(f"Remote command return code: {proc.returncode}")
     print("STDOUT:")
-    print(stdout.decode(errors='ignore'))
+    print(stdout.decode('utf-8', errors='ignore').encode('ascii', errors='ignore').decode('ascii'))
     print("STDERR:")
-    print(stderr.decode(errors='ignore'))
+    print(stderr.decode('utf-8', errors='ignore').encode('ascii', errors='ignore').decode('ascii'))
     
     # Cleanup local zip
     if os.path.exists(zip_path):

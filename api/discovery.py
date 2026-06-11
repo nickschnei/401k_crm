@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
 from api.database import get_async_db
 from api.models import Form5500Audit
 from services.scraper import run_nightly_dol_sync, get_sync_status
@@ -28,6 +28,10 @@ async def get_discovery_filings(
     max_assets: Optional[float] = Query(None),
     min_participants: Optional[int] = Query(0),
     max_participants: Optional[int] = Query(None),
+    state: Optional[str] = Query(None),
+    schedule_type: Optional[str] = Query(None),
+    asset_ranges: Optional[str] = Query(None),
+    participant_ranges: Optional[str] = Query(None),
     industry: Optional[str] = Query("All"),
     provider: Optional[str] = Query("All"),
     administrator: Optional[str] = Query("All"),
@@ -63,8 +67,74 @@ async def get_discovery_filings(
         if max_participants and max_participants > 0:
             stmt = stmt.where(Form5500Audit.active_participants <= max_participants)
             
-        if administrator != "All":
-            stmt = stmt.where(Form5500Audit.administrator_name == administrator)
+        if state:
+            states = [s.strip().upper() for s in state.split(",") if s.strip()]
+            if states:
+                stmt = stmt.where(Form5500Audit.dol_state.in_(states))
+
+        if schedule_type:
+            schedules = [s.strip() for s in schedule_type.split(",") if s.strip()]
+            has_none = "None" in schedules or "none" in [s.lower() for s in schedules]
+            filtered_schedules = [s for s in schedules if s.lower() != "none" and s != ""]
+            if filtered_schedules and has_none:
+                stmt = stmt.where(or_(Form5500Audit.schedule_type.in_(filtered_schedules), Form5500Audit.schedule_type.is_(None)))
+            elif filtered_schedules:
+                stmt = stmt.where(Form5500Audit.schedule_type.in_(filtered_schedules))
+            elif has_none:
+                stmt = stmt.where(Form5500Audit.schedule_type.is_(None))
+
+        if asset_ranges:
+            ranges = [r.strip().lower() for r in asset_ranges.split(",") if r.strip()]
+            if ranges:
+                conds = []
+                for r in ranges:
+                    if r == "under_1m":
+                        conds.append(Form5500Audit.total_assets < 1000000)
+                    elif r == "1m_to_5m":
+                        conds.append(and_(Form5500Audit.total_assets >= 1000000, Form5500Audit.total_assets < 5000000))
+                    elif r == "5m_to_25m":
+                        conds.append(and_(Form5500Audit.total_assets >= 5000000, Form5500Audit.total_assets < 25000000))
+                    elif r == "25m_to_100m":
+                        conds.append(and_(Form5500Audit.total_assets >= 25000000, Form5500Audit.total_assets < 100000000))
+                    elif r == "over_100m":
+                        conds.append(Form5500Audit.total_assets >= 100000000)
+                if conds:
+                    stmt = stmt.where(or_(*conds))
+
+        if participant_ranges:
+            ranges = [r.strip().lower() for r in participant_ranges.split(",") if r.strip()]
+            if ranges:
+                conds = []
+                for r in ranges:
+                    if r == "under_50":
+                        conds.append(Form5500Audit.active_participants < 50)
+                    elif r == "50_to_100":
+                        conds.append(and_(Form5500Audit.active_participants >= 50, Form5500Audit.active_participants < 100))
+                    elif r == "100_to_500":
+                        conds.append(and_(Form5500Audit.active_participants >= 100, Form5500Audit.active_participants < 500))
+                    elif r == "500_to_1000":
+                        conds.append(and_(Form5500Audit.active_participants >= 500, Form5500Audit.active_participants < 1000))
+                    elif r == "over_1000":
+                        conds.append(Form5500Audit.active_participants >= 1000)
+                if conds:
+                    stmt = stmt.where(or_(*conds))
+
+        if provider and provider != "All":
+            providers = [p.strip().lower() for p in provider.split(",") if p.strip()]
+            if providers:
+                conds = []
+                for p in providers:
+                    if p == "vanguard":
+                        conds.append(Form5500Audit.total_assets > 10000000)
+                    elif p == "fidelity":
+                        conds.append(or_(Form5500Audit.total_assets <= 10000000, Form5500Audit.total_assets.is_(None)))
+                if conds:
+                    stmt = stmt.where(or_(*conds))
+
+        if administrator and administrator != "All":
+            admins = [a.strip() for a in administrator.split(",") if a.strip()]
+            if admins:
+                stmt = stmt.where(Form5500Audit.administrator_name.in_(admins))
 
         # Execute query
         result = await db.execute(stmt)
