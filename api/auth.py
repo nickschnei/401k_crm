@@ -123,10 +123,31 @@ async def get_me(
     user = res.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found."
+        # Auto-provision mock user & default tenant
+        tenant_stmt = select(Tenant).where(Tenant.id == "default_tenant")
+        tenant_res = await db.execute(tenant_stmt)
+        db_tenant = tenant_res.scalar_one_or_none()
+        if not db_tenant:
+            db_tenant = Tenant(
+                id="default_tenant",
+                company_name="Default Advisory Firm",
+                subscription_tier="free",
+                subscription_status="active"
+            )
+            db.add(db_tenant)
+            await db.flush()
+        
+        user = User(
+            id=str(uuid.uuid4()),
+            clerk_user_id=current_user.clerk_id,
+            email=current_user.email,
+            first_name=current_user.first_name,
+            last_name=current_user.last_name,
+            tenant_id="default_tenant",
+            role="advisor"
         )
+        db.add(user)
+        await db.commit()
 
     return {
         "id": user.id,
