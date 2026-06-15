@@ -48,3 +48,8 @@ HUNTER_API_KEY = os.environ.get("HUNTER_API_KEY", "")
 EXCEL_PROSPECT_FILE = os.environ.get("EXCEL_PROSPECT_FILE", "Combined 401k Prospecting Plan.xlsx")
 DOL_DATA_DIR = os.environ.get("DOL_DATA_DIR", ".")
 EXTRACTED_DATA_DIR = os.environ.get("EXTRACTED_DATA_DIR", "extracted_data")
+
+# Google GenAI / Vertex AI Configuration
+GOOGLE_GENAI_API_KEY = os.environ.get("GOOGLE_GENAI_API_KEY", "")
+VERTEX_AI_PROJECT_ID = os.environ.get("VERTEX_AI_PROJECT_ID", "")
+VERTEX_AI_LOCATION = os.environ.get("VERTEX_AI_LOCATION", "us-central1")

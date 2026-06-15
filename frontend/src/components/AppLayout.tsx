@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
+import ChatSidebar from './ChatSidebar';
 import { Menu, X, Layers } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -65,7 +66,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
           
           <div className="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/25 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-            Fiduciary
+            CRM
           </div>
         </header>
 
@@ -74,6 +75,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      
+      {/* Global Chat Copilot Panel */}
+      <ChatSidebar />
     </div>
   );
 }

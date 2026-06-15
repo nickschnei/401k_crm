@@ -2,10 +2,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from api import prospects, discovery, audits, billing, auth
+from api import prospects, discovery, audits, billing, auth, agent
 
 app = FastAPI(
-    title="401(k) Fiduciary CRM SaaS API",
+    title="401(k) CRM SaaS API",
     description="High-performance backend API to handle Form 5500 filings, contact enrichment, and pipeline updates.",
     version="1.0.0",
 )
@@ -39,6 +39,10 @@ async def run_startup_migrations():
                     print("[Migration] Adding hashed_password column to SQLite users table...")
                     await session.execute(text("ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255) NULL;"))
                     await session.commit()
+                # Create index on total_assets
+                print("[Migration] Ensuring total_assets index exists on form_5500_audits...")
+                await session.execute(text("CREATE INDEX IF NOT EXISTS idx_form_5500_audits_total_assets ON form_5500_audits (total_assets DESC);"))
+                await session.commit()
             elif dialect_name == "postgresql":
                 # PostgreSQL schema verification
                 res = await session.execute(text(
@@ -51,6 +55,10 @@ async def run_startup_migrations():
                     # Alter clerk_user_id to be nullable in PostgreSQL
                     await session.execute(text("ALTER TABLE users ALTER COLUMN clerk_user_id DROP NOT NULL;"))
                     await session.commit()
+                # Create index on total_assets
+                print("[Migration] Ensuring total_assets index exists on PostgreSQL form_5500_audits...")
+                await session.execute(text("CREATE INDEX IF NOT EXISTS idx_form_5500_audits_total_assets ON form_5500_audits (total_assets DESC);"))
+                await session.commit()
         except Exception as e:
             print(f"[Migration] Auto-migration check warning: {e}")
 
@@ -79,6 +87,7 @@ app.include_router(prospects.router, prefix="/api/v1/prospects", tags=["Prospect
 app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discovery"])
 app.include_router(audits.router, prefix="/api/v1/audits", tags=["Audits"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
+app.include_router(agent.router, prefix="/api/v1/agent", tags=["Agent"])
 
 @app.get("/health", tags=["System Health"])
 async def health_check():

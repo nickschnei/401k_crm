@@ -112,7 +112,7 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
             Prospects CRM
           </h1>
           <p className="text-[10px] text-sky-400 font-semibold uppercase tracking-wider">
-            401(k) Fiduciary Suite
+            401(k) Suite
           </p>
         </div>
       </div>

@@ -141,6 +141,8 @@ export const discoveryService = {
     schedule_type?: string;
     asset_ranges?: string;
     participant_ranges?: string;
+    limit?: number;
+    offset?: number;
   }) => {
     const response = await api.get<DiscoveryFiling[]>('/discovery/', { params });
     return response.data;

@@ -76,7 +76,7 @@ export default function LoginPage() {
             <Shield className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            401(k) Fiduciary CRM
+            401(k) CRM
           </h1>
           <p className="text-xs text-slate-400">
             {isRegister ? 'Auto-provision your secure advisory portal' : 'Access your pipeline & diagnostic audits'}

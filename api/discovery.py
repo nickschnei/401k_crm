@@ -35,6 +35,8 @@ async def get_discovery_filings(
     industry: Optional[str] = Query("All"),
     provider: Optional[str] = Query("All"),
     administrator: Optional[str] = Query("All"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_async_db),
 ):
     """Retrieve raw DOL filings from discovery database with live filters."""
@@ -135,6 +137,9 @@ async def get_discovery_filings(
             admins = [a.strip() for a in administrator.split(",") if a.strip()]
             if admins:
                 stmt = stmt.where(Form5500Audit.administrator_name.in_(admins))
+
+        # Order by total_assets desc (using index) and apply pagination limit/offset
+        stmt = stmt.order_by(Form5500Audit.total_assets.desc()).limit(limit).offset(offset)
 
         # Execute query
         result = await db.execute(stmt)

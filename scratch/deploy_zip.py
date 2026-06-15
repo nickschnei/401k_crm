@@ -16,21 +16,27 @@ files_to_package = [
     "api/discovery.py",
     "api/prospects.py",
     "api/sync.py",
+    "api/agent.py",
     "frontend/src/components/Sidebar.tsx",
     "frontend/src/components/AppLayout.tsx",
+    "frontend/src/components/ChatSidebar.tsx",
     "frontend/src/app/layout.tsx",
     "frontend/src/middleware.ts",
     "frontend/src/services/api.ts",
     "frontend/src/app/discovery/page.tsx",
+    "frontend/src/app/login/page.tsx",
     "utils/audit_engine.py",
     "utils/auth.py",
+    "utils/pii.py",
     "check_db.py",
     "diagnose_eins.py",
     "excel_debug.py",
     "excel_debug.txt",
     "run_sync_tenant.py",
     "utils/fallback_5500.py",
-    "main.py"
+    "main.py",
+    "requirements.txt",
+    "config.py"
 ]
 
 # List of folders to package completely

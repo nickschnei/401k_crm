@@ -6,6 +6,8 @@ import { discoveryService, DiscoveryFiling } from '@/services/api';
 import { 
   Search, 
   ChevronDown, 
+  ChevronLeft,
+  ChevronRight,
   Activity,
   DollarSign,
   Users,
@@ -248,6 +250,23 @@ export default function DiscoveryPage() {
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedAdministrators, setSelectedAdministrators] = useState<string[]>([]);
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const limit = 50;
+
+  // Reset page when any filter changes
+  React.useEffect(() => {
+    setPage(1);
+  }, [
+    search,
+    selectedStates,
+    selectedAssetRanges,
+    selectedParticipantRanges,
+    selectedSchedules,
+    selectedProviders,
+    selectedAdministrators
+  ]);
+
   // Fetch Celery sync status
   const { data: syncStatus, refetch: refetchSyncStatus } = useQuery({
     queryKey: ['discovery-sync-status'],
@@ -268,7 +287,8 @@ export default function DiscoveryPage() {
       selectedParticipantRanges, 
       selectedSchedules, 
       selectedProviders, 
-      selectedAdministrators
+      selectedAdministrators,
+      page
     ],
     queryFn: () => discoveryService.getFilings({
       search: search || undefined,
@@ -277,7 +297,9 @@ export default function DiscoveryPage() {
       participant_ranges: selectedParticipantRanges.length > 0 ? selectedParticipantRanges.join(',') : undefined,
       schedule_type: selectedSchedules.length > 0 ? selectedSchedules.join(',') : undefined,
       provider: selectedProviders.length > 0 ? selectedProviders.join(',') : undefined,
-      administrator: selectedAdministrators.length > 0 ? selectedAdministrators.join(',') : undefined
+      administrator: selectedAdministrators.length > 0 ? selectedAdministrators.join(',') : undefined,
+      limit,
+      offset: (page - 1) * limit
     }),
   });
 
@@ -592,84 +614,130 @@ export default function DiscoveryPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-950/50 border-b border-slate-800/80 text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  <th className="px-6 py-4.5">Employer Sponsor info</th>
-                  <th className="px-6 py-4.5">Primary Plan Name</th>
-                  <th className="px-6 py-4.5 text-right">Plan assets</th>
-                  <th className="px-6 py-4.5 text-right">Participants</th>
-                  <th className="px-6 py-4.5">Geographic Location</th>
-                  <th className="px-6 py-4.5">Administrator</th>
-                  <th className="px-6 py-4.5 text-center">Diagnostics</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/40 text-sm">
-                {filings.map((filing) => (
-                  <tr 
-                    key={filing.ein} 
-                    className="hover:bg-slate-800/20 group transition-all duration-300 border-slate-800/40"
-                  >
-                    {/* Sponsor & EIN */}
-                    <td className="px-6 py-4.5 space-y-1">
-                      <div className="font-bold text-white tracking-wide group-hover:text-blue-400 transition-colors">
-                        {filing.employer_name}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        EIN: {filing.ein.slice(0,2)}-{filing.ein.slice(2)}
-                      </div>
-                    </td>
-
-                    {/* Plan name */}
-                    <td className="px-6 py-4.5">
-                      <div className="font-medium text-slate-300 max-w-[200px] truncate">
-                        {filing.plan_name || '401(k) Savings Plan'}
-                      </div>
-                    </td>
-
-                    {/* Assets */}
-                    <td className="px-6 py-4.5 text-right font-bold text-slate-200">
-                      {formatCurrency(filing.total_assets)}
-                    </td>
-
-                    {/* Headcount */}
-                    <td className="px-6 py-4.5 text-right font-medium text-slate-400">
-                      {filing.participants ? filing.participants.toLocaleString() : '0'}
-                    </td>
-
-                    {/* Location */}
-                    <td className="px-6 py-4.5 space-y-0.5">
-                      <div className="flex items-center gap-1 text-slate-300 font-semibold text-xs">
-                        <MapPin className="h-3 w-3 text-sky-400" />
-                        {filing.dol_city || 'City'}, {filing.dol_state || 'State'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 max-w-[150px] truncate pl-4">
-                        {filing.dol_address}
-                      </div>
-                    </td>
-
-                    {/* Administrator */}
-                    <td className="px-6 py-4.5">
-                      <div className="text-xs text-slate-400 max-w-[150px] truncate font-medium">
-                        {filing.administrator || 'TPA Missing'}
-                      </div>
-                    </td>
-
-                    {/* Fiduciary Diagnostics button */}
-                    <td className="px-6 py-4.5 text-center">
-                      <Link
-                        href={`/audits?ein=${filing.ein}&name=${encodeURIComponent(filing.employer_name)}`}
-                        className="inline-flex items-center justify-center p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 shadow-md group-hover:scale-105"
-                      >
-                        <ShieldAlert className="h-4 w-4" />
-                      </Link>
-                    </td>
+          <>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-950/50 border-b border-slate-800/80 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    <th className="px-6 py-4.5">Employer Sponsor info</th>
+                    <th className="px-6 py-4.5">Primary Plan Name</th>
+                    <th className="px-6 py-4.5 text-right">Plan assets</th>
+                    <th className="px-6 py-4.5 text-right">Participants</th>
+                    <th className="px-6 py-4.5">Geographic Location</th>
+                    <th className="px-6 py-4.5">Administrator</th>
+                    <th className="px-6 py-4.5 text-center">Diagnostics</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40 text-sm">
+                  {filings.map((filing) => (
+                    <tr 
+                      key={filing.ein} 
+                      className="hover:bg-slate-800/20 group transition-all duration-300 border-slate-800/40"
+                    >
+                      {/* Sponsor & EIN */}
+                      <td className="px-6 py-4.5 space-y-1">
+                        <div className="font-bold text-white tracking-wide group-hover:text-blue-400 transition-colors">
+                          {filing.employer_name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          EIN: {filing.ein.slice(0,2)}-{filing.ein.slice(2)}
+                        </div>
+                      </td>
+
+                      {/* Plan name */}
+                      <td className="px-6 py-4.5">
+                        <div className="font-medium text-slate-300 max-w-[200px] truncate">
+                          {filing.plan_name || '401(k) Savings Plan'}
+                        </div>
+                      </td>
+
+                      {/* Assets */}
+                      <td className="px-6 py-4.5 text-right font-bold text-slate-200">
+                        {formatCurrency(filing.total_assets)}
+                      </td>
+
+                      {/* Headcount */}
+                      <td className="px-6 py-4.5 text-right font-medium text-slate-400">
+                        {filing.participants ? filing.participants.toLocaleString() : '0'}
+                      </td>
+
+                      {/* Location */}
+                      <td className="px-6 py-4.5 space-y-0.5">
+                        <div className="flex items-center gap-1 text-slate-300 font-semibold text-xs">
+                          <MapPin className="h-3 w-3 text-sky-400" />
+                          {filing.dol_city || 'City'}, {filing.dol_state || 'State'}
+                        </div>
+                        <div className="text-[10px] text-slate-500 max-w-[150px] truncate pl-4">
+                          {filing.dol_address}
+                        </div>
+                      </td>
+
+                      {/* Administrator */}
+                      <td className="px-6 py-4.5">
+                        <div className="text-xs text-slate-400 max-w-[150px] truncate font-medium">
+                          {filing.administrator || 'TPA Missing'}
+                        </div>
+                      </td>
+
+                      {/* Fiduciary Diagnostics button */}
+                      <td className="px-6 py-4.5 text-center">
+                        <Link
+                          href={`/audits?ein=${filing.ein}&name=${encodeURIComponent(filing.employer_name)}`}
+                          className="inline-flex items-center justify-center p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 shadow-md group-hover:scale-105"
+                        >
+                          <ShieldAlert className="h-4 w-4" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-slate-950/30 border-t border-slate-800/60 text-xs text-slate-400">
+              <div className="font-medium">
+                Showing <span className="font-bold text-white">{(page - 1) * limit + 1}</span> –{' '}
+                <span className="font-bold text-white">{(page - 1) * limit + filings.length}</span> of registries
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (page > 1) {
+                      setPage(page - 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={page === 1}
+                  className="flex items-center gap-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:hover:bg-slate-900 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Previous
+                </button>
+
+                <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl font-bold text-white min-w-10 text-center">
+                  Page {page}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (filings.length === limit) {
+                      setPage(page + 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={filings.length < limit}
+                  className="flex items-center gap-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:hover:bg-slate-900 disabled:cursor-not-allowed"
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

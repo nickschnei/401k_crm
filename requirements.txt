@@ -16,3 +16,4 @@ aiosqlite>=0.20.0
 pyjwt>=2.8.0
 cryptography>=42.0.0
 stripe>=8.0.0
+google-genai>=0.1.1

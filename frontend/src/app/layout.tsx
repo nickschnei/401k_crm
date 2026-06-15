@@ -4,8 +4,8 @@ import Providers from "./providers";
 import AppLayout from "@/components/AppLayout";
 
 export const metadata: Metadata = {
-  title: "401(k) Fiduciary CRM",
-  description: "Modern, high-performance plan prospecting and fiduciary compliance diagnostic.",
+  title: "401(k) CRM",
+  description: "Modern, high-performance plan prospecting and compliance diagnostic.",
 };
 
 export default function RootLayout({
