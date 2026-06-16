@@ -59,7 +59,6 @@ def search_prospects(
         if filters:
             query = query.filter(and_(*filters))
             
-        # Order by assets desc
         query = query.order_by(Prospect.total_assets.desc()).limit(limit)
         
         results = []
@@ -94,7 +93,6 @@ def get_compliance_report(ein: str) -> str:
     """
     db = SessionLocal()
     try:
-        # Strip non-digits
         normalized_ein = "".join(c for c in ein if c.isdigit())
         audit = db.query(Form5500Audit).filter(Form5500Audit.ein == normalized_ein).first()
         if not audit:
@@ -169,7 +167,7 @@ def get_genai_client():
 async def stream_gemini_response(prompt: str):
     """
     Asynchronously resolve tool calls on the local database first, then stream the final
-    ERISA copilot response to the client.
+    ERISA copilot response to the client with automatic model fallback to avoid 503 errors.
     """
     try:
         client = get_genai_client()
@@ -185,30 +183,44 @@ async def stream_gemini_response(prompt: str):
             "and strictly decline to give explicit personal tax or investment advice."
         )
         
-        # Define the tools list
         tools = [search_prospects, get_compliance_report, get_contact_info]
-        
-        # Build contents message list
         contents = [types.Content(role="user", parts=[types.Part(text=prompt)])]
         
-        # Tool execution loop (max 5 iterations to prevent infinite loops)
+        # Primary and fallback models
+        fallback_models = ['gemini-3.5-flash', 'gemini-2.5-flash']
+        active_model = 'gemini-3.5-flash'
+        
+        # Tool execution loop
         for _ in range(5):
-            response = await client.aio.models.generate_content(
-                model='gemini-3.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    tools=tools,
-                    temperature=0.2,
-                )
-            )
+            response = None
+            last_err = None
             
-            # Check if model requested any function calls
+            # Try calling models in order of priority
+            for model_name in fallback_models:
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_instruction,
+                            tools=tools,
+                            temperature=0.2,
+                        )
+                    )
+                    active_model = model_name  # Keep using this model if successful
+                    break
+                except Exception as e:
+                    last_err = e
+                    print(f"[Agent Model Fallback] Model {model_name} generate failed: {str(e)}. Trying next...")
+                    continue
+            
+            if response is None:
+                raise last_err if last_err else Exception("No active Gemini models responded.")
+            
+            # Process function calls
             if response.function_calls:
-                # Append the model content containing the function call(s)
                 contents.append(response.candidates[0].content)
                 
-                # Execute the tool calls
                 tool_response_parts = []
                 for function_call in response.function_calls:
                     name = function_call.name
@@ -234,7 +246,6 @@ async def stream_gemini_response(prompt: str):
                     else:
                         result = f"Error: Tool {name} not found."
                         
-                    # Format function response part
                     tool_response_parts.append(
                         types.Part.from_function_response(
                             name=name,
@@ -242,27 +253,38 @@ async def stream_gemini_response(prompt: str):
                         )
                     )
                 
-                # Append function responses as role="user" content
                 contents.append(types.Content(role="user", parts=tool_response_parts))
-                
-                # Loop back to let the model generate text or another call
                 continue
             else:
-                # No function calls. We can stream the final generated response text
-                response_stream = await client.aio.models.generate_content_stream(
-                    model='gemini-3.5-flash',
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        tools=tools,
-                        temperature=0.2,
-                    )
-                )
+                # No function calls, stream the final response text
+                response_stream = None
+                last_stream_err = None
                 
-                async for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                return
+                # Order models starting with the successful active model
+                stream_models = [active_model] + [m for m in fallback_models if m != active_model]
+                
+                for model_name in stream_models:
+                    try:
+                        response_stream = await client.aio.models.generate_content_stream(
+                            model=model_name,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_instruction,
+                                tools=tools,
+                                temperature=0.2,
+                            )
+                        )
+                        async for chunk in response_stream:
+                            if chunk.text:
+                                yield chunk.text
+                        return
+                    except Exception as e:
+                        last_stream_err = e
+                        print(f"[Agent Stream Fallback] Model {model_name} stream failed: {str(e)}. Trying next...")
+                        continue
+                
+                if response_stream is None:
+                    raise last_stream_err if last_stream_err else Exception("No active Gemini model streams responded.")
                 
     except Exception as e:
         yield f"\n[Error streaming from Copilot: {str(e)}]"
