@@ -36,21 +36,13 @@ files_to_package = [
     "utils/fallback_5500.py",
     "main.py",
     "requirements.txt",
-    "config.py"
+    "config.py",
+    "scratch/check_api_key.py",
+    "docker-compose.yml"
 ]
 
-# List of folders to package completely
-folders_to_package = [
-    "F_5500_2025_Latest",
-    "F_5500_SF_2024_Latest",
-    "F_5500_SF_2025_Latest",
-    "F_SCH_C_2024_Latest",
-    "F_SCH_C_2025_Latest",
-    "F_SCH_H_2024_Latest",
-    "F_SCH_H_2025_Latest",
-    "F_SCH_I_2024_Latest",
-    "F_SCH_I_2025_Latest"
-]
+# List of folders to package completely (empty to speed up deployment)
+folders_to_package = []
 
 # Remote files to delete (since they are deleted locally)
 files_to_delete_remote = [
