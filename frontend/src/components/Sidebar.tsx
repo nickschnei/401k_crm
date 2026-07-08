@@ -12,7 +12,8 @@ import {
   Activity,
   Layers,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  MapPin
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { authService } from '@/services/api';
@@ -88,6 +89,12 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
       href: '/audits', 
       icon: ShieldAlert,
       description: 'Fiduciary Diagnostics'
+    },
+    { 
+      name: 'Trip Planner', 
+      href: '/planner', 
+      icon: MapPin,
+      description: 'Optimal Route Planner'
     },
   ];
 

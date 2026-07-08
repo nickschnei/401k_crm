@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from api import prospects, discovery, audits, billing, auth, agent
+from api import prospects, discovery, audits, billing, auth, agent, trip
 
 app = FastAPI(
     title="401(k) CRM SaaS API",
@@ -88,6 +88,7 @@ app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discover
 app.include_router(audits.router, prefix="/api/v1/audits", tags=["Audits"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
 app.include_router(agent.router, prefix="/api/v1/agent", tags=["Agent"])
+app.include_router(trip.router, prefix="/api/v1/trip", tags=["Trip Planner"])
 
 @app.get("/health", tags=["System Health"])
 async def health_check():

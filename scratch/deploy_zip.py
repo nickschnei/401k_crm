@@ -38,7 +38,11 @@ files_to_package = [
     "requirements.txt",
     "config.py",
     "scratch/check_api_key.py",
-    "docker-compose.yml"
+    "docker-compose.yml",
+    "api/trip.py",
+    "utils/geocoder.py",
+    "frontend/src/components/TripMap.tsx",
+    "frontend/src/app/planner/page.tsx"
 ]
 
 # List of folders to package completely (empty to speed up deployment)

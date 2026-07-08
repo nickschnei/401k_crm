@@ -74,6 +74,22 @@ export interface DiscoveryFiling {
   ein: string;
 }
 
+export interface TripStop {
+  ein?: string;
+  name: string;
+  address: string;
+  lat: number;
+  lon: number;
+  distance_from_last: number;
+  leg_duration_minutes: number;
+}
+
+export interface TripResponse {
+  total_distance_miles: number;
+  total_duration_minutes: number;
+  stops: TripStop[];
+}
+
 export const prospectsService = {
   getProspects: async (params?: {
     search?: string;
@@ -166,6 +182,17 @@ export const discoveryService = {
 
   triggerSync: async () => {
     const response = await api.post<{ success: boolean; message: string; task_id?: string }>('/discovery/sync');
+    return response.data;
+  },
+};
+
+export const tripService = {
+  planTrip: async (req: {
+    start_location: string;
+    eins: string[];
+    round_trip?: boolean;
+  }) => {
+    const response = await api.post<TripResponse>('/trip/planner', req);
     return response.data;
   },
 };
