@@ -44,7 +44,8 @@ files_to_package = [
     "frontend/src/components/TripMap.tsx",
     "frontend/src/app/planner/page.tsx",
     "frontend/package.json",
-    "frontend/package-lock.json"
+    "frontend/package-lock.json",
+    "scratch/enrich_addresses.py"
 ]
 
 # List of folders to package completely (empty to speed up deployment)
