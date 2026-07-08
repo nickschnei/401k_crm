@@ -151,7 +151,11 @@ async def get_prospects(
                 rows = result.all()
 
         results = []
+        seen_eins = set()
         for prospect, audit in rows:
+            if prospect.ein in seen_eins:
+                continue
+            seen_eins.add(prospect.ein)
             total_assets = 0.0
             if prospect.total_assets is not None:
                 total_assets = float(prospect.total_assets)

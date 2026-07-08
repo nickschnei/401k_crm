@@ -146,8 +146,12 @@ async def plan_trip(
             
         # 2. Retrieve Company Addresses from local DB
         company_stops = []
+        seen_eins = set()
         for ein in request.eins:
             normalized_ein = "".join(c for c in ein if c.isdigit())
+            if normalized_ein in seen_eins:
+                continue
+            seen_eins.add(normalized_ein)
             
             # Query the audit and prospects table
             prospect = db.query(Prospect).filter(Prospect.ein == normalized_ein).first()
