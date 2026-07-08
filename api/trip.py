@@ -1,12 +1,13 @@
 import math
 import itertools
+import re
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from api.database import SessionLocal
 from api.models import Prospect, Form5500Audit
 from utils.auth import ClerkUser, get_current_user
-from utils.geocoder import geocode_address
+from utils.geocoder import geocode_address, extract_5digit_zip
 
 router = APIRouter()
 
@@ -161,13 +162,40 @@ async def plan_trip(
                 continue
                 
             # If address exists in audit table, use it
-            if audit and audit.dol_address:
-                zip_str = str(audit.dol_zip).split('.')[0] if audit.dol_zip else ""
-                addr_str = f"{audit.dol_address}, {audit.dol_city}, {audit.dol_state} {zip_str}"
+            if audit:
+                parts = []
+                if audit.dol_address:
+                    parts.append(audit.dol_address.strip())
+                if audit.dol_city:
+                    parts.append(audit.dol_city.strip())
+                if audit.dol_state:
+                    parts.append(audit.dol_state.strip())
+                if audit.dol_zip:
+                    zip_str = str(audit.dol_zip).split('.')[0].zfill(5)
+                    parts.append(zip_str)
+                    
+                if parts:
+                    addr_str = ", ".join(parts)
+                else:
+                    addr_str = f"{prospect.employer_name}, Lewiston, ME"
             else:
-                # Mock a search location based on prospect industry/provider
-                addr_str = f"{prospect.employer_name}, Lewiston, ME"
-                
+                # Check for zip code in prospect notes
+                notes_zip = None
+                if prospect.notes:
+                    match = re.search(r"\b\d{5}\b", prospect.notes)
+                    if match:
+                        notes_zip = match.group(0)
+                        
+                if notes_zip:
+                    addr_str = f"{prospect.employer_name}, {notes_zip}"
+                else:
+                    # Place it near the advisor's starting location ZIP
+                    start_zip = extract_5digit_zip(request.start_location)
+                    if start_zip:
+                        addr_str = f"{prospect.employer_name}, {start_zip}"
+                    else:
+                        addr_str = f"{prospect.employer_name}, Lewiston, ME"
+                        
             try:
                 lat, lon = geocode_address(addr_str)
                 company_stops.append({
