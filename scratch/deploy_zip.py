@@ -42,7 +42,9 @@ files_to_package = [
     "api/trip.py",
     "utils/geocoder.py",
     "frontend/src/components/TripMap.tsx",
-    "frontend/src/app/planner/page.tsx"
+    "frontend/src/app/planner/page.tsx",
+    "frontend/package.json",
+    "frontend/package-lock.json"
 ]
 
 # List of folders to package completely (empty to speed up deployment)
