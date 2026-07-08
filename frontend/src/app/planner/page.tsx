@@ -13,12 +13,13 @@ import {
   Minus, 
   Loader2, 
   Compass, 
-  AlertTriangle,
-  ArrowRight
+  Search,
+  Filter,
+  MousePointerClick
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
-// Dynamically import map component with ssr: false to prevent SSR 'window is not defined' Leaflet errors
+// Dynamically import map component to prevent SSR 'window is not defined' Leaflet errors
 const TripMap = dynamic(() => import('@/components/TripMap'), {
   ssr: false,
   loading: () => (
@@ -34,6 +35,10 @@ export default function PlannerPage() {
   const [selectedEins, setSelectedEins] = useState<string[]>([]);
   const [roundTrip, setRoundTrip] = useState(true);
   const [optimizedRoute, setOptimizedRoute] = useState<TripResponse | null>(null);
+  
+  // Search & tab filter states
+  const [searchText, setSearchText] = useState('');
+  const [selectedTab, setSelectedTab] = useState('All');
 
   // 1. Fetch CRM prospects list
   const { data: prospects = [], isLoading: isLoadingProspects } = useQuery({
@@ -53,6 +58,17 @@ export default function PlannerPage() {
     }
   });
 
+  // Filtering calculations
+  const filteredProspects = prospects.filter(p => {
+    const matchesSearch = 
+      (p.employer_name?.toLowerCase().includes(searchText.toLowerCase()) || false) ||
+      (p.ein?.includes(searchText) || false) ||
+      (p.provider?.toLowerCase().includes(searchText.toLowerCase()) || false);
+      
+    const matchesTab = selectedTab === 'All' || p.status === selectedTab;
+    return matchesSearch && matchesTab;
+  });
+
   const toggleProspect = (ein: string) => {
     setSelectedEins(prev => 
       prev.includes(ein) 
@@ -61,11 +77,39 @@ export default function PlannerPage() {
     );
   };
 
-  const handleSelectAll = () => {
-    if (selectedEins.length === prospects.length) {
-      setSelectedEins([]);
+  const handleSelectFiltered = () => {
+    const filteredEins = filteredProspects.map(p => p.ein);
+    const allFilteredSelected = filteredEins.every(ein => selectedEins.includes(ein));
+    
+    if (allFilteredSelected) {
+      // Deselect all filtered
+      setSelectedEins(prev => prev.filter(ein => !filteredEins.includes(ein)));
     } else {
-      setSelectedEins(prospects.map(p => p.ein));
+      // Select all filtered (union with existing selection)
+      setSelectedEins(prev => {
+        const newSelection = [...prev];
+        filteredEins.forEach(ein => {
+          if (!newSelection.includes(ein)) {
+            newSelection.push(ein);
+          }
+        });
+        return newSelection;
+      });
+    }
+  };
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'Meeting Set':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'Cold Called':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'Researching':
+        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      case 'Lead':
+        return 'bg-slate-500/10 text-slate-400 border-slate-700/30';
+      default:
+        return 'bg-slate-500/10 text-slate-400 border-slate-700/30';
     }
   };
 
@@ -75,6 +119,14 @@ export default function PlannerPage() {
     if (hours === 0) return `${minutes} mins`;
     return `${hours} hr ${minutes} mins`;
   };
+
+  // Status Tab Counts
+  const getTabCount = (tabName: string) => {
+    if (tabName === 'All') return prospects.length;
+    return prospects.filter(p => p.status === tabName).length;
+  };
+
+  const tabs = ['All', 'Meeting Set', 'Cold Called', 'Researching', 'Lead'];
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -90,8 +142,8 @@ export default function PlannerPage() {
 
       {/* Main Workspace Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Configuration Controls (lg:col-span-4) */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Left Column: Configuration Controls (lg:col-span-5) */}
+        <div className="lg:col-span-5 space-y-6">
           
           {/* Start Location Card */}
           <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-2xl shadow-xl space-y-4">
@@ -124,31 +176,83 @@ export default function PlannerPage() {
           </div>
 
           {/* Prospects Multi-Selector Card */}
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-2xl shadow-xl flex flex-col max-h-[480px]">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-2xl shadow-xl flex flex-col min-h-[550px] max-h-[680px]">
+            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-indigo-400">
                 <MapPin className="h-5 w-5" />
                 <h3 className="font-bold text-sm uppercase tracking-wider text-slate-200">Target Prospects</h3>
               </div>
+              <span className="text-xs bg-slate-850 px-2 py-0.5 rounded-md font-mono text-indigo-400 font-bold">
+                {selectedEins.length} selected
+              </span>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search by company or EIN..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none focus:border-indigo-500/50 text-xs transition-all"
+              />
+            </div>
+
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-slate-850 mb-3 scrollbar-thin">
+              {tabs.map((tab) => {
+                const count = getTabCount(tab);
+                const isActive = selectedTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setSelectedTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-2xs font-bold whitespace-nowrap cursor-pointer transition-all border ${
+                      isActive 
+                        ? 'bg-indigo-600/15 border-indigo-500/30 text-indigo-300' 
+                        : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab} <span className="opacity-60 ml-0.5">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Actions Bar */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-850/50 mb-3">
+              <span className="text-2xs text-slate-500 font-semibold">
+                Showing {filteredProspects.length} targets
+              </span>
+              
               <button 
-                onClick={handleSelectAll}
-                className="text-xs font-semibold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer"
+                onClick={handleSelectFiltered}
+                disabled={filteredProspects.length === 0}
+                className="flex items-center gap-1 text-2xs font-bold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer disabled:opacity-30"
               >
-                {selectedEins.length === prospects.length ? 'Deselect All' : 'Select All'}
+                <MousePointerClick className="h-3 w-3" />
+                {filteredProspects.every(p => selectedEins.includes(p.ein)) 
+                  ? 'Deselect Tab' 
+                  : 'Select Tab'}
               </button>
             </div>
 
             {/* Scrollable list */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
               {isLoadingProspects ? (
-                <div className="flex items-center justify-center py-10 gap-2">
+                <div className="flex items-center justify-center py-20 gap-2">
                   <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-                  <span className="text-slate-500 text-xs font-medium">Loading CRM data...</span>
+                  <span className="text-slate-500 text-xs font-medium">Loading CRM dataset...</span>
                 </div>
-              ) : prospects.length === 0 ? (
-                <p className="text-slate-500 text-xs text-center py-10">No prospects available in CRM.</p>
+              ) : filteredProspects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+                  <Filter className="h-6 w-6 text-slate-700" />
+                  <p className="text-slate-500 text-xs font-semibold">No matching prospects found.</p>
+                </div>
               ) : (
-                prospects.map((p) => {
+                filteredProspects.map((p) => {
                   const isSelected = selectedEins.includes(p.ein);
                   return (
                     <div
@@ -156,12 +260,17 @@ export default function PlannerPage() {
                       onClick={() => toggleProspect(p.ein)}
                       className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-300 cursor-pointer ${
                         isSelected 
-                          ? 'bg-indigo-600/10 border-indigo-500/30 hover:bg-indigo-600/15' 
+                          ? 'bg-indigo-600/10 border-indigo-500/35 hover:bg-indigo-600/15' 
                           : 'bg-slate-950/40 border-slate-850 hover:bg-slate-800/30'
                       }`}
                     >
-                      <div className="space-y-0.5 flex-1 min-w-0 pr-3">
-                        <h4 className="font-bold text-xs text-slate-200 truncate">{p.employer_name}</h4>
+                      <div className="space-y-1 flex-1 min-w-0 pr-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-xs text-slate-200 truncate">{p.employer_name}</h4>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getStatusStyle(p.status)}`}>
+                            {p.status}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2 text-[10px] text-slate-500">
                           <span className="font-mono">EIN: {p.ein}</span>
                           <span>·</span>
@@ -206,8 +315,8 @@ export default function PlannerPage() {
 
         </div>
 
-        {/* Right Column: Map & Optimized Timelines (lg:col-span-8) */}
-        <div className="lg:col-span-8 space-y-6">
+        {/* Right Column: Map & Optimized Timelines (lg:col-span-7) */}
+        <div className="lg:col-span-7 space-y-6">
           
           {/* Map View Card */}
           <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-2xl shadow-xl">
@@ -216,7 +325,7 @@ export default function PlannerPage() {
               <h3 className="font-bold text-sm uppercase tracking-wider text-slate-200">Interactive Map View</h3>
             </div>
             
-            <div className="h-[450px] w-full rounded-xl overflow-hidden relative">
+            <div className="h-[480px] w-full rounded-xl overflow-hidden relative">
               <TripMap stops={optimizedRoute?.stops || []} />
             </div>
           </div>
