@@ -1032,7 +1032,7 @@ if prospect_audit_record:
         st.button("🔒 Download Plan Fiduciary Diagnostic PDF (Pro)", key="download_pdf_locked_btn", help="Upgrade to a Pro or Enterprise plan in the sidebar to download client-facing PDFs.", use_container_width=True)
     else:
         try:
-            from utils.pdf_generator import compile_diagnostic_pdf
+            from utils.pdf_generator import compile_diagnostic_pdf, compile_short_form_pdf
             pdf_payload = {
                 "employer_name": active_company_name,
                 "plan_name": prospect_audit_record.get("plan_name", "401(k) Plan"),
@@ -1051,13 +1051,26 @@ if prospect_audit_record:
                 "administrator_name": prospect_audit_record.get("administrator", "Sponsor Managed")
             }
             pdf_buffer = compile_diagnostic_pdf(pdf_payload, custom_pitch)
-            st.download_button(
-                label="📄 Download Plan Fiduciary Diagnostic PDF",
-                data=pdf_buffer.getvalue(),
-                file_name=f"fiduciary_diagnostic_{clean_ein}.pdf",
-                mime="application/pdf",
-                key="download_pdf_btn",
-                use_container_width=True
-            )
+            short_pdf_buffer = compile_short_form_pdf(pdf_payload, custom_pitch)
+            
+            pdf_col1, pdf_col2 = st.columns(2)
+            with pdf_col1:
+                st.download_button(
+                    label="📄 Download Short Form PDF (1-Page Summary)",
+                    data=short_pdf_buffer.getvalue(),
+                    file_name=f"fiduciary_short_form_{clean_ein}.pdf",
+                    mime="application/pdf",
+                    key="download_short_pdf_btn",
+                    use_container_width=True
+                )
+            with pdf_col2:
+                st.download_button(
+                    label="📄 Download Plan Fiduciary Diagnostic PDF",
+                    data=pdf_buffer.getvalue(),
+                    file_name=f"fiduciary_diagnostic_{clean_ein}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_btn",
+                    use_container_width=True
+                )
         except Exception as pdf_err:
             st.error(f"Error compiling PDF: {pdf_err}")

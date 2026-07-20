@@ -277,3 +277,263 @@ def compile_diagnostic_pdf(record: Dict[str, Any], pitch_text: str) -> BytesIO:
     
     buffer.seek(0)
     return buffer
+
+
+def compile_short_form_pdf(record: Dict[str, Any], pitch_text: str = None) -> BytesIO:
+    """
+    Programmatically compile a streamlined, 1-page C-suite facing Short Form PDF Audit Report.
+    Designed for quick executive presentation & high-level fiduciary overview.
+    """
+    buffer = BytesIO()
+    
+    margin = 36 # 0.5 inch margins
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=margin,
+        rightMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin
+    )
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'ShortDocTitle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor('#0f172a'), # Dark Slate Header
+        spaceAfter=2
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'ShortDocSubtitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor('#2563eb'), # Bright Blue Accent
+        spaceAfter=14,
+        textTransform='uppercase'
+    )
+    
+    h2_style = ParagraphStyle(
+        'ShortSectionHeader',
+        parent=styles['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=13,
+        textColor=colors.HexColor('#1e293b'),
+        spaceBefore=10,
+        spaceAfter=6
+    )
+    
+    body_style = ParagraphStyle(
+        'ShortBodyText',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=12,
+        textColor=colors.HexColor('#334155'),
+        spaceAfter=4
+    )
+    
+    mono_style = ParagraphStyle(
+        'ShortMonoText',
+        parent=styles['Normal'],
+        fontName='Courier',
+        fontSize=8.5,
+        textColor=colors.HexColor('#475569')
+    )
+
+    # 1. Header Banner & Title Block
+    story.append(Paragraph("401(k) FIDUCIARY SHORT FORM AUDIT", title_style))
+    story.append(Paragraph("EXECUTIVE FIDUCIARY SUMMARY & BENCHMARK SNAPSHOT", subtitle_style))
+    
+    # 2. Plan Snapshot Table
+    emp_name = record.get("employer_name") or "Plan Sponsor Organization"
+    plan_name = record.get("plan_name") or "401(k) Savings Plan"
+    ein = record.get("ein") or "—"
+    assets = record.get("total_assets")
+    assets_str = f"${assets:,.2f}" if assets else "—"
+    participants = record.get("active_participants")
+    part_str = f"{participants:,}" if participants else "—"
+    schedule_type = record.get("schedule_type") or "Form 5500"
+    
+    meta_data = [
+        [
+            Paragraph("<b>Employer Sponsor:</b>", body_style), Paragraph(emp_name, body_style),
+            Paragraph("<b>Active Headcount:</b>", body_style), Paragraph(part_str, body_style)
+        ],
+        [
+            Paragraph("<b>Plan Name:</b>", body_style), Paragraph(plan_name, body_style),
+            Paragraph("<b>Plan Assets (EOY):</b>", body_style), Paragraph(assets_str, body_style)
+        ],
+        [
+            Paragraph("<b>Employer EIN:</b>", body_style), Paragraph(ein, mono_style),
+            Paragraph("<b>Filing Schedule:</b>", body_style), Paragraph(f"Schedule {schedule_type}", body_style)
+        ]
+    ]
+    
+    meta_table = Table(meta_data, colWidths=[110, 180, 110, 140])
+    meta_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f1f5f9')),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 10))
+    
+    # 3. Fiduciary Scorecard Table
+    story.append(Paragraph("Key Fiduciary Indicators", h2_style))
+    
+    fee_ratio = record.get("fee_ratio") or 0.0
+    fee_bps = int(fee_ratio * 10000)
+    fee_val = f"{fee_ratio * 100:.2f}% ({fee_bps} bps)" if fee_ratio else "—"
+    part_rate = record.get("participation_rate") or 0.0
+    part_val = f"{part_rate * 100:.1f}%" if part_rate else "—"
+    admin_exp = record.get("admin_expenses")
+    admin_str = f"${admin_exp:,.2f}" if admin_exp else "$0.00"
+    corr_dist = record.get("corrective_distributions")
+    corr_str = f"${corr_dist:,.2f}" if corr_dist else "$0.00"
+    
+    fee_flag = record.get("fee_red_flag") or record.get("fee_flag")
+    part_flag = record.get("participation_red_flag") or record.get("participation_flag")
+    comp_failed = record.get("compliance_failed")
+    
+    fee_status = "RED FLAG" if fee_flag else "PASS"
+    fee_color = "#dc2626" if fee_flag else "#16a34a"
+    
+    part_status = "RED FLAG" if part_flag else "PASS"
+    part_color = "#dc2626" if part_flag else "#16a34a"
+    
+    comp_status = "RED FLAG" if comp_failed else "PASS"
+    comp_color = "#dc2626" if comp_failed else "#16a34a"
+    
+    scorecard_header_style = ParagraphStyle(
+        'ShortScoreHeader',
+        parent=body_style,
+        fontName='Helvetica-Bold',
+        textColor=colors.white
+    )
+    
+    scorecard_data = [
+        [
+            Paragraph("Fiduciary Benchmark", scorecard_header_style),
+            Paragraph("Reported Metric", scorecard_header_style),
+            Paragraph("Benchmark Target", scorecard_header_style),
+            Paragraph("Status", scorecard_header_style)
+        ],
+        [
+            Paragraph("Plan Fee Ratio", body_style),
+            Paragraph(fee_val, body_style),
+            Paragraph("&lt; 60 bps (0.60%)", body_style),
+            Paragraph(f"<b><font color='{fee_color}'>{fee_status}</font></b>", body_style)
+        ],
+        [
+            Paragraph("Workforce Participation Rate", body_style),
+            Paragraph(part_val, body_style),
+            Paragraph("&gt; 70% Target", body_style),
+            Paragraph(f"<b><font color='{part_color}'>{part_status}</font></b>", body_style)
+        ],
+        [
+            Paragraph("Compliance Testing Refunds", body_style),
+            Paragraph(corr_str, body_style),
+            Paragraph("$0.00 Refunds", body_style),
+            Paragraph(f"<b><font color='{comp_color}'>{comp_status}</font></b>", body_style)
+        ],
+        [
+            Paragraph("Direct Admin Expenses", body_style),
+            Paragraph(admin_str, body_style),
+            Paragraph("Market Rate Validation", body_style),
+            Paragraph("<b>REVIEW</b>", body_style)
+        ]
+    ]
+    
+    score_table = Table(scorecard_data, colWidths=[150, 120, 150, 120])
+    score_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0f172a')),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(score_table)
+    story.append(Spacer(1, 10))
+    
+    # 4. Executive Takeaways & Recommendations Box
+    story.append(Paragraph("Executive Summary & Risk Takeaways", h2_style))
+    
+    takeaways = []
+    if fee_flag:
+        takeaways.append("<b>Fee Ratio Exposure:</b> Current fee structure exceeds recommended 60 bps benchmark. High administrative expenses reduce net plan returns and create ERISA fiduciary fee liability.")
+    if part_flag:
+        takeaways.append("<b>Participation Deficit:</b> Participation is below 70%, which risks ADP/ACP compliance testing failure and restricts high-earner contribution limits.")
+    if comp_failed:
+        takeaways.append("<b>Compliance Failure Record:</b> Testing refund disclosures indicate plan design friction requiring safe-harbor or auto-enrollment restructuring.")
+    if not takeaways:
+        takeaways.append("<b>Healthy Fiduciary Status:</b> All audited core indicators meet institutional guidelines. Regular 3-year RFP benchmarking is advised to keep fees optimized as assets grow.")
+        
+    takeaway_paras = []
+    for item in takeaways:
+        takeaway_paras.append(Paragraph(f"• {item}", body_style))
+        takeaway_paras.append(Spacer(1, 4))
+        
+    # Styled Callout Box
+    callout_content = [[takeaway_paras]]
+    callout_table = Table(callout_content, colWidths=[540])
+    callout_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#eff6ff')), # Soft Light Blue
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#bfdbfe')),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(callout_table)
+    story.append(Spacer(1, 12))
+    
+    # 5. Optional Executive Outreach / Summary Pitch Box if provided
+    if pitch_text:
+        story.append(Paragraph("Executive Fiduciary Action Plan", h2_style))
+        formatted_pitch = pitch_text.replace("\n", "<br/>")
+        pitch_p = Paragraph(formatted_pitch, body_style)
+        pitch_box = Table([[pitch_p]], colWidths=[540])
+        pitch_box.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#fafaf9')),
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#e2e8f0')),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ]))
+        story.append(pitch_box)
+        story.append(Spacer(1, 10))
+        
+    # Footer notice
+    footer_style = ParagraphStyle(
+        'ShortFooter',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=7.5,
+        textColor=colors.HexColor('#94a3b8'),
+        alignment=1 # Centered
+    )
+    story.append(Paragraph("CONFIDENTIAL & PROPRIETARY — 401(k) FIDUCIARY CRM SHORT FORM AUDIT REPORT", footer_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+

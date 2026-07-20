@@ -359,3 +359,100 @@ async def download_fiduciary_diagnostic_pdf(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{ein}/pdf/short")
+async def download_fiduciary_short_pdf(
+    ein: str, 
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Compile and stream a branded, condensed 1-page short form executive PDF audit report."""
+    try:
+        tenant_id = await resolve_tenant_id(db, current_user)
+        
+        if not db.bind.dialect.name == "sqlite":
+            await db.execute(
+                text("SELECT set_config('app.current_clerk_id', :clerk_id, true)"),
+                {"clerk_id": current_user.clerk_id}
+            )
+            
+        clean_ein = "".join(c for c in str(ein) if c.isdigit())[-9:].zfill(9)
+        stmt = select(Form5500Audit).where(Form5500Audit.ein == clean_ein)
+        result = await db.execute(stmt)
+        record = result.scalar_one_or_none()
+        
+        if not record or record.total_assets is None or record.total_assets == 0.0:
+            try:
+                await db.rollback()
+                from utils.audit_engine import run_plan_audit
+                extract_dir = core.ensure_extracted_csvs()
+                run_plan_audit(clean_ein, extract_dir)
+                
+                result = await db.execute(stmt)
+                record = result.scalar_one_or_none()
+            except Exception as audit_err:
+                print(f"Lazy audit failure for EIN {clean_ein}: {audit_err}")
+
+        if not record:
+            prospect_stmt = select(Prospect).where(Prospect.ein == clean_ein).where(Prospect.tenant_id == tenant_id)
+            prospect_result = await db.execute(prospect_stmt)
+            prospect = prospect_result.scalar_one_or_none()
+            
+            if prospect:
+                employer_name = prospect.employer_name or "your prospect"
+                record_clean = {
+                    "ein": clean_ein,
+                    "employer_name": employer_name,
+                    "plan_name": "401(k) Savings Plan (Excel Curated)",
+                    "schedule_type": "Excel",
+                    "total_assets": float(prospect.total_assets) if prospect.total_assets else 0.0,
+                    "active_participants": prospect.active_participants or 0,
+                    "total_eligible_employees": prospect.active_participants or 0,
+                    "admin_expenses": 0.0,
+                    "corrective_distributions": 0.0,
+                    "participation_rate": 1.0,
+                    "fee_ratio": 0.0,
+                    "compliance_failed": False,
+                    "fee_flag": False,
+                    "participation_flag": False,
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"No DOL filing or Excel prospect details found for EIN {clean_ein}.")
+        else:
+            employer_name = record.employer_name or "your prospect"
+            record_clean = {
+                "ein": record.ein,
+                "employer_name": employer_name,
+                "plan_name": record.plan_name or "401(k) Savings Plan",
+                "schedule_type": record.schedule_type,
+                "total_assets": float(record.total_assets) if record.total_assets else 0.0,
+                "active_participants": record.active_participants or 0,
+                "total_eligible_employees": record.total_eligible_employees or 0,
+                "admin_expenses": float(record.admin_expenses) if record.admin_expenses else 0.0,
+                "corrective_distributions": float(record.corrective_distributions) if record.corrective_distributions else 0.0,
+                "participation_rate": float(record.participation_rate) if record.participation_rate else 0.0,
+                "fee_ratio": float(record.fee_ratio) if record.fee_ratio else 0.0,
+                "compliance_failed": record.compliance_failed,
+                "fee_flag": record.fee_red_flag,
+                "participation_flag": record.participation_red_flag,
+            }
+
+        pitch_raw = build_custom_outreach_pitch(record_clean, employer_name)
+        
+        from utils.pdf_generator import compile_short_form_pdf
+        from fastapi.responses import StreamingResponse
+        
+        pdf_stream = compile_short_form_pdf(record_clean, pitch_raw)
+        
+        filename = f"fiduciary_short_form_{clean_ein}.pdf"
+        headers = {
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+        return StreamingResponse(pdf_stream, media_type="application/pdf", headers=headers)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

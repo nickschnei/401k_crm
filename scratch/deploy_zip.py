@@ -45,7 +45,10 @@ files_to_package = [
     "frontend/src/app/planner/page.tsx",
     "frontend/package.json",
     "frontend/package-lock.json",
-    "scratch/enrich_addresses.py"
+    "scratch/enrich_addresses.py",
+    "utils/pdf_generator.py",
+    "frontend/src/app/audits/page.tsx",
+    "app.py"
 ]
 
 # List of folders to package completely (empty to speed up deployment)

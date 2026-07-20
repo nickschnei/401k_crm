@@ -180,15 +180,27 @@ function AuditDashboard() {
               <p className="text-[11px] text-slate-500 font-mono">Employer Identification Number (EIN): {audit.ein}</p>
             </div>
 
-            {/* Branded PDF Download Button */}
-            <a
-              href={auditsService.getReportPdfUrl(audit.ein)}
-              download
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-red-600/10 hover:shadow-red-600/20 group cursor-pointer"
-            >
-              <Download className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform" />
-              Download Branded PDF Audit
-            </a>
+            {/* Action Buttons: Short Form PDF & Full Branded PDF */}
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={auditsService.getShortReportPdfUrl(audit.ein)}
+                download
+                className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 group cursor-pointer"
+                title="Download 1-Page Executive Short Form Audit Summary"
+              >
+                <FileText className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform text-indigo-200" />
+                Download Short Form PDF
+              </a>
+              <a
+                href={auditsService.getReportPdfUrl(audit.ein)}
+                download
+                className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-red-600/10 hover:shadow-red-600/20 group cursor-pointer"
+                title="Download Full Branded Fiduciary Diagnostic Audit PDF"
+              >
+                <Download className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform" />
+                Download Branded PDF Audit
+              </a>
+            </div>
           </div>
 
           {/* Fiduciary metrics grid */}

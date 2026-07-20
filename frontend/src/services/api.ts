@@ -141,6 +141,10 @@ export const auditsService = {
   getReportPdfUrl: (ein: string) => {
     return `${API_BASE}/audits/${ein}/pdf`;
   },
+
+  getShortReportPdfUrl: (ein: string) => {
+    return `${API_BASE}/audits/${ein}/pdf/short`;
+  },
 };
 
 export const discoveryService = {
