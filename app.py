@@ -1055,12 +1055,10 @@ if prospect_audit_record:
             
             pdf_col1, pdf_col2 = st.columns(2)
             with pdf_col1:
-                st.download_button(
-                    label="📄 Download Short Form PDF (1-Page Summary)",
-                    data=short_pdf_buffer.getvalue(),
-                    file_name=f"fiduciary_short_form_{clean_ein}.pdf",
-                    mime="application/pdf",
-                    key="download_short_pdf_btn",
+                st.link_button(
+                    label="📄 Raw Form 5500-SF Document (DOL Portal)",
+                    url="https://www.efast.dol.gov/5500search/",
+                    help="Access official raw Form 5500-SF filings on the Department of Labor EFAST2 site",
                     use_container_width=True
                 )
             with pdf_col2:
