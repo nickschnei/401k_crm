@@ -6,6 +6,7 @@ from sqlalchemy import select, text
 from api.database import get_async_db
 from api.models import Form5500Audit, Prospect
 import core
+import config
 from utils.auth import ClerkUser, get_current_user
 from api.prospects import resolve_tenant_id
 
@@ -415,10 +416,11 @@ async def download_fiduciary_short_pdf(
     or redirects to the official Department of Labor EFAST2 portal.
     """
     import os
+    import config
     from fastapi.responses import FileResponse, RedirectResponse
     
     clean_ein = "".join(c for c in str(ein) if c.isdigit())[-9:].zfill(9)
-    base_dir = str(config.BASE_DIR)
+    base_dir = str(getattr(config, "BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     
     # Check potential local store locations for the real original PDF
     pdf_candidates = [
