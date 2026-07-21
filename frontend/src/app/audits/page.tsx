@@ -184,13 +184,12 @@ function AuditDashboard() {
             <div className="flex flex-wrap items-center gap-3">
               <a
                 href={auditsService.getShortReportPdfUrl(audit.ein)}
-                target="_blank"
-                rel="noopener noreferrer"
+                download
                 className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 group cursor-pointer"
-                title="Search and download official original filed Form 5500 PDF package directly on US Department of Labor EFAST2 Portal"
+                title="Download authentic original filed Form 5500 PDF document directly"
               >
                 <FileText className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform text-indigo-200" />
-                Get Original Form 5500 (DOL)
+                Download Raw Form 5500
               </a>
               <a
                 href={auditsService.getReportPdfUrl(audit.ein)}
