@@ -449,6 +449,125 @@ async def download_fiduciary_short_pdf(
     )
 
 
+@router.get("/batch/zip")
+async def download_batch_branded_pdfs(
+    eins: str,
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Generate and package branded Fiduciary Diagnostic PDFs for multiple plans into a single ZIP archive.
+    """
+    import io
+    import zipfile
+    from fastapi.responses import StreamingResponse
+    from utils.pdf_generator import compile_diagnostic_pdf
+    
+    ein_list = [e.strip() for e in eins.split(",") if e.strip()]
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for ein in ein_list:
+            clean_ein = "".join(c for c in str(ein) if c.isdigit())[-9:].zfill(9)
+            
+            stmt = select(Form5500Audit).where(Form5500Audit.ein == clean_ein)
+            record = None
+            try:
+                result = await db.execute(stmt)
+                record = result.scalar_one_or_none()
+            except Exception as db_err:
+                print(f"[BatchZip] DB error for {clean_ein}: {db_err}")
+                
+            if not record or record.total_assets is None or record.total_assets == 0.0:
+                try:
+                    await db.rollback()
+                    from utils.audit_engine import run_plan_audit
+                    extract_dir = core.ensure_extracted_csvs()
+                    run_plan_audit(clean_ein, extract_dir)
+                    result = await db.execute(stmt)
+                    record = result.scalar_one_or_none()
+                except Exception as audit_err:
+                    print(f"[BatchZip] Lazy audit notice for {clean_ein}: {audit_err}")
+                    
+            record_clean = None
+            if record:
+                employer_name = record.employer_name or f"Employer {clean_ein}"
+                record_clean = {
+                    "ein": record.ein,
+                    "employer_name": employer_name,
+                    "plan_name": record.plan_name or "401(k) Savings Plan",
+                    "schedule_type": record.schedule_type or "SF",
+                    "total_assets": float(record.total_assets) if record.total_assets else 0.0,
+                    "active_participants": record.active_participants or 0,
+                    "total_eligible_employees": record.total_eligible_employees or 0,
+                    "admin_expenses": float(record.admin_expenses) if record.admin_expenses else 0.0,
+                    "corrective_distributions": float(record.corrective_distributions) if record.corrective_distributions else 0.0,
+                    "participation_rate": float(record.participation_rate) if record.participation_rate else 0.0,
+                    "fee_ratio": float(record.fee_ratio) if record.fee_ratio else 0.0,
+                    "compliance_failed": bool(record.compliance_failed),
+                    "fee_flag": bool(record.fee_red_flag),
+                    "participation_flag": bool(record.participation_red_flag),
+                }
+            else:
+                try:
+                    prospect_stmt = select(Prospect).where(Prospect.ein == clean_ein)
+                    prospect_result = await db.execute(prospect_stmt)
+                    prospect = prospect_result.scalar_one_or_none()
+                    if prospect:
+                        employer_name = prospect.employer_name or f"Prospect {clean_ein}"
+                        record_clean = {
+                            "ein": clean_ein,
+                            "employer_name": employer_name,
+                            "plan_name": "401(k) Savings Plan (Curated)",
+                            "schedule_type": "Excel",
+                            "total_assets": float(prospect.total_assets) if prospect.total_assets else 0.0,
+                            "active_participants": prospect.active_participants or 0,
+                            "total_eligible_employees": prospect.active_participants or 0,
+                            "admin_expenses": 0.0,
+                            "corrective_distributions": 0.0,
+                            "participation_rate": 1.0,
+                            "fee_ratio": 0.0,
+                            "compliance_failed": False,
+                            "fee_flag": False,
+                            "participation_flag": False,
+                        }
+                except Exception as p_err:
+                    print(f"[BatchZip] Prospect query error for {clean_ein}: {p_err}")
+                    
+            if not record_clean:
+                record_clean = {
+                    "ein": clean_ein,
+                    "employer_name": f"Organization (EIN {clean_ein})",
+                    "plan_name": "401(k) Savings Plan",
+                    "schedule_type": "SF",
+                    "total_assets": 0.0,
+                    "active_participants": 0,
+                    "total_eligible_employees": 0,
+                    "admin_expenses": 0.0,
+                    "corrective_distributions": 0.0,
+                    "participation_rate": 0.0,
+                    "fee_ratio": 0.0,
+                    "compliance_failed": False,
+                    "fee_flag": False,
+                    "participation_flag": False,
+                }
+                
+            employer_name = record_clean["employer_name"]
+            pitch_raw = build_custom_outreach_pitch(record_clean, employer_name)
+            pdf_stream = compile_diagnostic_pdf(record_clean, pitch_raw)
+            
+            file_friendly_name = employer_name.replace(" ", "_").replace("/", "_").replace("\\", "_").replace(":", "_").replace("*", "_").replace("?", "_").replace("\"", "_").replace("<", "_").replace(">", "_").replace("|", "_")
+            zip_file.writestr(f"fiduciary_diagnostic_{file_friendly_name}_{clean_ein}.pdf", pdf_stream.getvalue())
+            
+    zip_buffer.seek(0)
+    filename = "fiduciary_diagnostic_reports.zip"
+    headers = {
+        "Content-Disposition": f"attachment; filename={filename}",
+        "Access-Control-Expose-Headers": "Content-Disposition"
+    }
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
+
 
 
 

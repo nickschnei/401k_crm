@@ -23,7 +23,8 @@ import {
   Download,
   Layers,
   FileCheck,
-  Building2
+  Building2,
+  FileArchive
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -105,6 +106,12 @@ function PipelineContent() {
     return styles[status] || 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
   };
 
+  // Build ZIP download url for all matching prospects
+  const getBatchZipUrl = () => {
+    const activeEins = prospects.map(p => p.ein);
+    return auditsService.getBatchReportsZipUrl(activeEins);
+  };
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto w-full">
       {/* Page Header */}
@@ -118,14 +125,29 @@ function PipelineContent() {
           </p>
         </div>
 
-        <button 
-          onClick={() => refetch()}
-          disabled={isLoading || isRefetching}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50 self-start md:self-auto"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || isLoading ? 'animate-spin' : ''}`} />
-          Force Reload
-        </button>
+        <div className="flex items-center gap-3 self-start md:self-auto">
+          {/* Download All Branded PDFs Button */}
+          {prospects.length > 0 && (
+            <a
+              href={getBatchZipUrl()}
+              download
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 cursor-pointer"
+              title="Download branded Fiduciary Diagnostic PDF reports for all filtered plans in a single ZIP package"
+            >
+              <FileArchive className="h-4 w-4" />
+              Download All Branded PDFs (.zip)
+            </a>
+          )}
+
+          <button 
+            onClick={() => refetch()}
+            disabled={isLoading || isRefetching}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || isLoading ? 'animate-spin' : ''}`} />
+            Force Reload
+          </button>
+        </div>
       </div>
 
       {/* Prominent Workspace Mode Switcher Tabs */}
@@ -432,31 +454,25 @@ function PipelineContent() {
                       </td>
 
                       <td className="px-6 py-4.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <a
-                            href={auditsService.getShortReportPdfUrl(prospect.ein)}
-                            download
-                            className="p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer"
-                            title="Download Raw Form 5500 PDF"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                          </a>
-
+                        <div className="flex items-center justify-center gap-2">
+                          {/* Branded Fiduciary Audit PDF Download */}
                           <a
                             href={auditsService.getReportPdfUrl(prospect.ein)}
                             download
-                            className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:bg-red-500/20 transition-all cursor-pointer"
+                            className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:bg-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold"
                             title="Download Branded Fiduciary Diagnostic PDF"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Download className="h-4 w-4" />
+                            Download Branded PDF
                           </a>
 
+                          {/* Full Audit View Page */}
                           <Link
                             href={`/audits?ein=${prospect.ein}&name=${encodeURIComponent(prospect.employer_name)}`}
-                            className="p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+                            className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
                             title="View Full Audit Page & Pitch"
                           >
-                            <ShieldAlert className="h-3.5 w-3.5" />
+                            <ShieldAlert className="h-4 w-4" />
                           </Link>
                         </div>
                       </td>
@@ -479,12 +495,26 @@ function PipelineContent() {
                 Fiduciary PDF Report Store & Short Form Library
               </div>
               <p className="text-slate-400 text-xs max-w-2xl">
-                Download raw Department of Labor Form 5500 filings and 1-page branded fiduciary diagnostic PDF audits directly for all leads in your pipeline without opening audit subpages.
+                Download 1-page branded fiduciary diagnostic PDF audits directly for all leads in your pipeline or package them all at once into a single ZIP archive.
               </p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-300 font-bold text-xs">
-              <Building2 className="h-3.5 w-3.5 text-indigo-400" />
-              {prospects.length} Total PDF Reports Available
+
+            <div className="flex flex-wrap items-center gap-2">
+              {prospects.length > 0 && (
+                <a
+                  href={getBatchZipUrl()}
+                  download
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-md cursor-pointer"
+                >
+                  <FileArchive className="h-4 w-4" />
+                  Download All Branded PDFs (.zip)
+                </a>
+              )}
+
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-300 font-bold text-xs">
+                <Building2 className="h-3.5 w-3.5 text-indigo-400" />
+                {prospects.length} Active Plan Reports
+              </div>
             </div>
           </div>
 
@@ -508,7 +538,6 @@ function PipelineContent() {
                       <th className="px-6 py-4">Employer & EIN</th>
                       <th className="px-6 py-4">Plan Assets</th>
                       <th className="px-6 py-4">Schedule / Form Type</th>
-                      <th className="px-6 py-4 text-center">Raw Form 5500 PDF</th>
                       <th className="px-6 py-4 text-center">Branded Fiduciary Audit PDF</th>
                       <th className="px-6 py-4 text-center">View Interactive Audit</th>
                     </tr>
@@ -531,28 +560,19 @@ function PipelineContent() {
                           </span>
                         </td>
 
-                        <td className="px-6 py-4 text-center">
-                          <a
-                            href={auditsService.getShortReportPdfUrl(prospect.ein)}
-                            download
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-600/20 to-blue-600/20 hover:from-indigo-600/30 hover:to-blue-600/30 border border-indigo-500/30 rounded-xl text-indigo-300 font-bold text-xs transition-all cursor-pointer shadow-md"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-indigo-400" />
-                            Download Raw PDF
-                          </a>
-                        </td>
-
+                        {/* Branded Diagnostic PDF Download */}
                         <td className="px-6 py-4 text-center">
                           <a
                             href={auditsService.getReportPdfUrl(prospect.ein)}
                             download
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-red-600/20 to-rose-600/20 hover:from-red-600/30 hover:to-rose-600/30 border border-red-500/30 rounded-xl text-rose-300 font-bold text-xs transition-all cursor-pointer shadow-md"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600/20 to-rose-600/20 hover:from-red-600/30 hover:to-rose-600/30 border border-red-500/30 rounded-xl text-rose-300 font-bold text-xs transition-all cursor-pointer shadow-md"
                           >
                             <Download className="h-3.5 w-3.5 text-rose-400" />
                             Download Branded PDF
                           </a>
                         </td>
 
+                        {/* Audit Page */}
                         <td className="px-6 py-4 text-center">
                           <Link
                             href={`/audits?ein=${prospect.ein}&name=${encodeURIComponent(prospect.employer_name)}`}

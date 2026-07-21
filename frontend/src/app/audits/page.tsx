@@ -180,17 +180,8 @@ function AuditDashboard() {
               <p className="text-[11px] text-slate-500 font-mono">Employer Identification Number (EIN): {audit.ein}</p>
             </div>
 
-            {/* Action Buttons: Short Form PDF & Full Branded PDF */}
+            {/* Action Buttons: Full Branded PDF */}
             <div className="flex flex-wrap items-center gap-3">
-              <a
-                href={auditsService.getShortReportPdfUrl(audit.ein)}
-                download
-                className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 group cursor-pointer"
-                title="Download authentic original filed Form 5500 PDF document directly"
-              >
-                <FileText className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform text-indigo-200" />
-                Download Raw Form 5500
-              </a>
               <a
                 href={auditsService.getReportPdfUrl(audit.ein)}
                 download

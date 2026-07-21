@@ -145,6 +145,10 @@ export const auditsService = {
   getShortReportPdfUrl: (ein: string) => {
     return `${API_BASE}/audits/${ein}/pdf/short`;
   },
+
+  getBatchReportsZipUrl: (eins: string[]) => {
+    return `${API_BASE}/audits/batch/zip?eins=${eins.join(',')}`;
+  },
 };
 
 export const discoveryService = {
