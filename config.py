@@ -26,6 +26,7 @@ def load_dotenv(env_path=".env"):
 load_dotenv()
 
 # App Core Settings
+BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///prospects.db")
 SECRET_KEY = os.environ.get("SECRET_KEY", "crm-default-secret-token")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
