@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { prospectsService, auditsService, Prospect } from '@/services/api';
+import { useSearchParams } from 'next/navigation';
 import { 
   Search, 
   ChevronDown, 
@@ -26,11 +27,19 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function PipelinePage() {
+function PipelineContent() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
 
   // Navigation Tab State
   const [activeTab, setActiveTab] = useState<'pipeline' | 'pdf_store'>('pipeline');
+
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab');
+    if (tabParam === 'pdf_store') {
+      setActiveTab('pdf_store');
+    }
+  }, [searchParams]);
 
   // Filters State
   const [search, setSearch] = useState('');
@@ -119,6 +128,36 @@ export default function PipelinePage() {
         </button>
       </div>
 
+      {/* Prominent Workspace Mode Switcher Tabs */}
+      <div className="flex flex-wrap items-center gap-3 p-1.5 bg-slate-900/60 border border-slate-800/80 rounded-2xl shadow-xl backdrop-blur-xl">
+        <button
+          onClick={() => setActiveTab('pipeline')}
+          className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-extrabold text-sm transition-all duration-300 cursor-pointer ${
+            activeTab === 'pipeline'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          Lead Pipeline Workspace ({totalProspects})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pdf_store')}
+          className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-extrabold text-sm transition-all duration-300 cursor-pointer ${
+            activeTab === 'pdf_store'
+              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          PDF Reports Store & Short Forms
+          <span className="px-2.5 py-0.5 text-[10px] bg-white/20 text-white font-extrabold rounded-full border border-white/20">
+            Instant Download
+          </span>
+        </button>
+      </div>
+
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="relative group overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-6 rounded-2xl shadow-xl transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/30">
@@ -170,40 +209,9 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {/* Navigation Tabs Bar */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
-        <button
-          onClick={() => setActiveTab('pipeline')}
-          className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 cursor-pointer ${
-            activeTab === 'pipeline'
-              ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-lg shadow-blue-500/10'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          Lead Pipeline Workspace ({totalProspects})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('pdf_store')}
-          className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 cursor-pointer ${
-            activeTab === 'pdf_store'
-              ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-500/10'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-          }`}
-        >
-          <FileText className="h-4 w-4 text-indigo-400" />
-          PDF Reports Hub & Short Forms
-          <span className="px-2.5 py-0.5 text-[10px] bg-indigo-500/20 text-indigo-300 font-extrabold rounded-full border border-indigo-500/30">
-            Instant 1-Click Download
-          </span>
-        </button>
-      </div>
-
       {/* Live Search & Filtering Options */}
       <div className="bg-slate-900/25 border border-slate-800/60 p-6 rounded-2xl shadow-lg space-y-4">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search bar */}
           <div className="flex-1 relative">
             <Search className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-slate-500" />
             <input
@@ -215,7 +223,6 @@ export default function PipelinePage() {
             />
           </div>
 
-          {/* Min Assets */}
           <div className="w-full lg:w-48">
             <select
               value={minAssets}
@@ -230,7 +237,6 @@ export default function PipelinePage() {
             </select>
           </div>
 
-          {/* Min Participants */}
           <div className="w-full lg:w-48">
             <select
               value={minParticipants}
@@ -245,7 +251,6 @@ export default function PipelinePage() {
             </select>
           </div>
 
-          {/* Status Filter */}
           <div className="w-full lg:w-48">
             <select
               value={statusFilter}
@@ -262,7 +267,6 @@ export default function PipelinePage() {
           </div>
         </div>
 
-        {/* Advanced Filters Expand Toggle */}
         <div>
           <button 
             onClick={() => setShowAdvanced(!showAdvanced)}
@@ -274,7 +278,6 @@ export default function PipelinePage() {
           </button>
         </div>
 
-        {/* Advanced Filter Content */}
         {showAdvanced && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn">
             <div className="space-y-1.5">
@@ -428,10 +431,8 @@ export default function PipelinePage() {
                         )}
                       </td>
 
-                      {/* PDF Downloads & Audit Links */}
                       <td className="px-6 py-4.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* Raw Form 5500 PDF Download */}
                           <a
                             href={auditsService.getShortReportPdfUrl(prospect.ein)}
                             download
@@ -441,7 +442,6 @@ export default function PipelinePage() {
                             <FileText className="h-3.5 w-3.5" />
                           </a>
 
-                          {/* Branded Fiduciary Audit PDF Download */}
                           <a
                             href={auditsService.getReportPdfUrl(prospect.ein)}
                             download
@@ -451,7 +451,6 @@ export default function PipelinePage() {
                             <Download className="h-3.5 w-3.5" />
                           </a>
 
-                          {/* Full Audit View Page */}
                           <Link
                             href={`/audits?ein=${prospect.ein}&name=${encodeURIComponent(prospect.employer_name)}`}
                             className="p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
@@ -473,7 +472,7 @@ export default function PipelinePage() {
       {/* TAB 2: PDF Reports Hub & Short Form Library */}
       {activeTab === 'pdf_store' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-blue-950/40 border border-indigo-500/20 p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-purple-950/40 border border-indigo-500/20 p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
                 <FileCheck className="h-4 w-4 text-indigo-400" />
@@ -532,7 +531,6 @@ export default function PipelinePage() {
                           </span>
                         </td>
 
-                        {/* Raw Form 5500 PDF Download */}
                         <td className="px-6 py-4 text-center">
                           <a
                             href={auditsService.getShortReportPdfUrl(prospect.ein)}
@@ -544,7 +542,6 @@ export default function PipelinePage() {
                           </a>
                         </td>
 
-                        {/* Branded Diagnostic PDF Download */}
                         <td className="px-6 py-4 text-center">
                           <a
                             href={auditsService.getReportPdfUrl(prospect.ein)}
@@ -556,7 +553,6 @@ export default function PipelinePage() {
                           </a>
                         </td>
 
-                        {/* Audit Page */}
                         <td className="px-6 py-4 text-center">
                           <Link
                             href={`/audits?ein=${prospect.ein}&name=${encodeURIComponent(prospect.employer_name)}`}
@@ -576,5 +572,17 @@ export default function PipelinePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PipelinePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    }>
+      <PipelineContent />
+    </Suspense>
   );
 }

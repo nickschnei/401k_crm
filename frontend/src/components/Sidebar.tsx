@@ -13,7 +13,8 @@ import {
   Layers,
   LogOut,
   ChevronDown,
-  MapPin
+  MapPin,
+  FileText
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { authService } from '@/services/api';
@@ -77,6 +78,12 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
       href: '/pipeline', 
       icon: Briefcase,
       description: 'Prospect CRM flow'
+    },
+    { 
+      name: 'PDF Reports Store', 
+      href: '/pipeline?tab=pdf_store', 
+      icon: FileText,
+      description: 'Raw 5500 & Short Forms'
     },
     { 
       name: 'Discovery', 
