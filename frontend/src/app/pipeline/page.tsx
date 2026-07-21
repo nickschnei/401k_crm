@@ -103,47 +103,49 @@ function PipelineContent() {
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto w-full">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-extrabold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent tracking-tight">
-            Pipeline Workspace
-          </h2>
-          <p className="text-slate-400 text-sm mt-1">
-            Enterprise corporate lead prospecting dashboard & fiduciary pipelines.
-          </p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 border-b border-slate-850 pb-6">
+        <div className="space-y-4 flex-1">
+          <div>
+            <h2 className="text-3xl font-extrabold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent tracking-tight">
+              Pipeline Workspace
+            </h2>
+            <p className="text-slate-400 text-sm mt-1">
+              Enterprise corporate lead prospecting dashboard & fiduciary pipelines.
+            </p>
+          </div>
+
+          {/* Prominent Middle-Left Download All Button */}
+          <div className="pt-2">
+            {prospects.length > 0 ? (
+              <a
+                href={getBatchZipUrl()}
+                download
+                className="inline-flex items-center gap-2.5 px-6 py-4 bg-gradient-to-r from-red-650 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-sm rounded-xl transition-all duration-300 shadow-xl shadow-red-600/30 hover:shadow-red-600/50 cursor-pointer border border-red-500/40 active:scale-95"
+                title="Download branded Fiduciary Diagnostic PDF reports for all filtered plans in a single ZIP package"
+              >
+                <FileArchive className="h-5 w-5 text-red-200" />
+                Download All Branded PDFs (.zip)
+              </a>
+            ) : (
+              <button
+                disabled
+                className="inline-flex items-center gap-2.5 px-6 py-4 bg-slate-900 border border-slate-800 text-slate-500 font-extrabold text-sm rounded-xl cursor-not-allowed opacity-50"
+              >
+                <FileArchive className="h-5 w-5" />
+                Download All Branded PDFs (.zip)
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-          {/* Prominent High-Visibility Download All Branded PDFs Button */}
-          {prospects.length > 0 ? (
-            <a
-              href={getBatchZipUrl()}
-              download
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-red-600/20 hover:shadow-red-600/35 cursor-pointer border border-red-500/30 active:scale-95"
-              title="Download branded Fiduciary Diagnostic PDF reports for all filtered plans in a single ZIP package"
-            >
-              <FileArchive className="h-4.5 w-4.5" />
-              Download All Branded PDFs (.zip)
-            </a>
-          ) : (
-            <button
-              disabled
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-500 font-bold text-sm rounded-xl cursor-not-allowed opacity-50"
-            >
-              <FileArchive className="h-4.5 w-4.5" />
-              Download All Branded PDFs (.zip)
-            </button>
-          )}
-
-          <button 
-            onClick={() => refetch()}
-            disabled={isLoading || isRefetching}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || isLoading ? 'animate-spin' : ''}`} />
-            Force Reload
-          </button>
-        </div>
+        <button 
+          onClick={() => refetch()}
+          disabled={isLoading || isRefetching}
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50 self-start md:self-auto"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || isLoading ? 'animate-spin' : ''}`} />
+          Force Reload
+        </button>
       </div>
 
       {/* Metric Cards */}
