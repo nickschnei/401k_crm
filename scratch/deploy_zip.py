@@ -51,8 +51,10 @@ files_to_package = [
     "app.py"
 ]
 
-# List of folders to package completely (empty to speed up deployment)
-folders_to_package = []
+# List of folders to package completely
+folders_to_package = [
+    "data/pdfs"
+]
 
 # Remote files to delete (since they are deleted locally)
 files_to_delete_remote = [
