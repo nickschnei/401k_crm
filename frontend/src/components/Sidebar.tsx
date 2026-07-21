@@ -80,12 +80,6 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
       description: 'Prospect CRM flow'
     },
     { 
-      name: 'PDF Reports Store', 
-      href: '/pipeline?tab=pdf_store', 
-      icon: FileText,
-      description: 'Raw 5500 & Short Forms'
-    },
-    { 
       name: 'Discovery', 
       href: '/discovery', 
       icon: Search,
