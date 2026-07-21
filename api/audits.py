@@ -367,13 +367,38 @@ async def download_fiduciary_short_pdf(
     current_user: ClerkUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Redirect to the official Department of Labor EFAST2 portal for the original filed Form 5500 PDF document."""
-    from fastapi.responses import RedirectResponse
+    """
+    Serves the authentic original filed Form 5500 PDF document from the local PDF store if present,
+    or redirects to the official Department of Labor EFAST2 portal.
+    """
+    import os
+    from fastapi.responses import FileResponse, RedirectResponse
+    
     clean_ein = "".join(c for c in str(ein) if c.isdigit())[-9:].zfill(9)
+    
+    # Check potential local store locations for the real original PDF
+    pdf_candidates = [
+        os.path.join(config.BASE_DIR, "data", "pdfs", f"{clean_ein}.pdf"),
+        os.path.join(config.BASE_DIR, "data", "pdfs", f"Form_5500_{clean_ein}.pdf"),
+        os.path.join(config.BASE_DIR, "extracted_data", "pdfs", f"{clean_ein}.pdf"),
+        os.path.join(config.BASE_DIR, "extracted_data", f"{clean_ein}.pdf"),
+    ]
+    
+    for pdf_path in pdf_candidates:
+        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+            print(f"[PDFStore] Serving real original Form 5500 PDF for EIN {clean_ein} from {pdf_path}")
+            return FileResponse(
+                path=pdf_path,
+                media_type="application/pdf",
+                filename=f"Form_5500_SF_{clean_ein}.pdf"
+            )
+            
+    # Fallback to official DOL EFAST2 filing search portal
     return RedirectResponse(
         url="https://www.efast.dol.gov/5500search/",
         status_code=307
     )
+
 
 
 
