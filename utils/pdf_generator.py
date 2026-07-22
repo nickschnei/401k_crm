@@ -7,10 +7,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.units import inch
 from typing import Dict, Any
 
-def compile_diagnostic_pdf(record: Dict[str, Any], pitch_text: str) -> BytesIO:
+def compile_diagnostic_pdf(record: Dict[str, Any], pitch_text: str, contacts: list = None) -> BytesIO:
     """
-    Programmatically compile a branded, client-ready 1-page PDF diagnostic report
-    using ReportLab Platypus. Fits perfectly on a single Letter page.
+    Programmatically compile a branded, client-ready PDF diagnostic report
+    using ReportLab Platypus. Fits perfectly on a single Letter page (or 2 pages if contacts are provided).
     """
     buffer = BytesIO()
     
@@ -271,6 +271,78 @@ def compile_diagnostic_pdf(record: Dict[str, Any], pitch_text: str) -> BytesIO:
     ]))
     
     story.append(pitch_table)
+    
+    # Page 2: ZoomInfo Decision Makers / Contacts
+    if contacts:
+        story.append(PageBreak())
+        
+        # Header/Title for Page 2
+        story.append(Paragraph("Key Plan Decision Makers & Contacts", title_style))
+        story.append(Paragraph("ZoomInfo Verified Contacts and Corporate Officers", subtitle_style))
+        
+        # Explanatory text
+        intro_style = ParagraphStyle(
+            'IntroText',
+            parent=body_style,
+            fontSize=9.5,
+            leading=14,
+            textColor=colors.HexColor('#334155'),
+            spaceAfter=15
+        )
+        intro_text = (
+            "The following list represents verified plan contacts, corporate officers, and decision makers "
+            "for this plan sponsor derived from active ZoomInfo prospecting sheets. This can be used "
+            "to coordinate outreach campaign delivery."
+        )
+        story.append(Paragraph(intro_text, intro_style))
+        
+        # Table of Contacts
+        table_data = [[
+            Paragraph("<b>Name</b>", ParagraphStyle('H1', parent=body_style, fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph("<b>Job Title</b>", ParagraphStyle('H2', parent=body_style, fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph("<b>Direct Phone</b>", ParagraphStyle('H3', parent=body_style, fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph("<b>Email Address</b>", ParagraphStyle('H4', parent=body_style, fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph("<b>Location</b>", ParagraphStyle('H5', parent=body_style, fontName='Helvetica-Bold', textColor=colors.white)),
+        ]]
+        
+        # Wrap contact cells in paragraphs to ensure autowrap
+        cell_style = ParagraphStyle(
+            'CellText',
+            parent=body_style,
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#0f172a')
+        )
+        
+        for c in contacts:
+            table_data.append([
+                Paragraph(c.get("name") or "N/A", cell_style),
+                Paragraph(c.get("title") or "N/A", cell_style),
+                Paragraph(c.get("phone") or "N/A", cell_style),
+                Paragraph(c.get("email") or "N/A", cell_style),
+                Paragraph(c.get("location") or "N/A", cell_style),
+            ])
+            
+        # Table column widths: total 540 points (7.5 inches width)
+        contact_table = Table(table_data, colWidths=[110, 150, 80, 130, 70])
+        
+        # Table styling
+        t_style = TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e3a8a')), # Brand Royal Blue header
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')), # light border
+        ])
+        
+        # Alternating rows background color
+        for i in range(1, len(table_data)):
+            bg = colors.HexColor('#ffffff') if i % 2 != 0 else colors.HexColor('#f8fafc')
+            t_style.add('BACKGROUND', (0, i), (-1, i), bg)
+            
+        contact_table.setStyle(t_style)
+        story.append(contact_table)
     
     # Build Document
     doc.build(story)

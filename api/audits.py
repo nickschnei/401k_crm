@@ -370,10 +370,11 @@ async def download_fiduciary_diagnostic_pdf(
         employer_name = record_clean["employer_name"]
         pitch_raw = build_custom_outreach_pitch(record_clean, employer_name)
         
+        contacts = _load_contacts_for_employer(employer_name)
         from utils.pdf_generator import compile_diagnostic_pdf
         from fastapi.responses import StreamingResponse
         
-        pdf_stream = compile_diagnostic_pdf(record_clean, pitch_raw)
+        pdf_stream = compile_diagnostic_pdf(record_clean, pitch_raw, contacts)
         
         filename = f"fiduciary_diagnostic_{clean_ein}.pdf"
         headers = {
@@ -554,7 +555,8 @@ async def download_batch_branded_pdfs(
                 
             employer_name = record_clean["employer_name"]
             pitch_raw = build_custom_outreach_pitch(record_clean, employer_name)
-            pdf_stream = compile_diagnostic_pdf(record_clean, pitch_raw)
+            contacts = _load_contacts_for_employer(employer_name)
+            pdf_stream = compile_diagnostic_pdf(record_clean, pitch_raw, contacts)
             
             file_friendly_name = employer_name.replace(" ", "_").replace("/", "_").replace("\\", "_").replace(":", "_").replace("*", "_").replace("?", "_").replace("\"", "_").replace("<", "_").replace(">", "_").replace("|", "_")
             zip_file.writestr(f"fiduciary_diagnostic_{file_friendly_name}_{clean_ein}.pdf", pdf_stream.getvalue())
@@ -566,6 +568,128 @@ async def download_batch_branded_pdfs(
         "Access-Control-Expose-Headers": "Content-Disposition"
     }
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
+
+# Helper functions for ZoomInfo spreadsheet matching and contact parsing
+STOP_WORDS = {
+    "inc", "llc", "corp", "group", "co", "pc", "llp", "ltd", 
+    "and", "etc", "solutions", "of", "the", "company", "corporation",
+    "incorporated", "association", "dental", "dentistry", "design",
+    "management", "wealth", "partners", "consultants", "consulting",
+    "engineers", "engineering", "financial", "care", "family", "anesthesia",
+    "surgical", "orthodontics", "laboratory", "laboratories", "associates",
+    "office", "services", "system", "systems", "telecom"
+}
+
+def _get_significant_words(name):
+    if not name:
+        return []
+    import re
+    words = re.findall(r'[a-z0-9]+', name.lower())
+    return [w for w in words if w not in STOP_WORDS]
+
+def _find_best_sheet_match(p_name, sheet_names):
+    p_words = _get_significant_words(p_name)
+    if not p_words:
+        return None
+    best_sheet = None
+    best_score = 0
+    for s in sheet_names:
+        if s == 'Key List':
+            continue
+        s_words = _get_significant_words(s)
+        if not s_words:
+            continue
+        intersection = set(p_words) & set(s_words)
+        score = len(intersection)
+        if score > best_score:
+            best_score = score
+            best_sheet = s
+        elif score == best_score and score > 0:
+            p_str = "".join(p_words)
+            s_str = "".join(s_words)
+            if p_str in s_str or s_str in p_str:
+                best_sheet = s
+    if best_score > 0:
+        s_words = _get_significant_words(best_sheet)
+        min_req = min(len(p_words), len(s_words))
+        if best_score >= max(1, min_req * 0.5):
+            return best_sheet
+    return None
+
+def _get_zoominfo_contacts(excel_path, sheet_name):
+    if not sheet_name:
+        return []
+    import openpyxl
+    wb = openpyxl.load_workbook(excel_path, data_only=True)
+    if sheet_name not in wb.sheetnames:
+        wb.close()
+        return []
+    ws = wb[sheet_name]
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if len(rows) < 2:
+        return []
+    headers = [str(h).strip().lower() for h in rows[0] if h is not None]
+    
+    def get_index(names):
+        for name in names:
+            if name.lower() in headers:
+                return headers.index(name.lower())
+        return -1
+        
+    idx_first = get_index(["first name"])
+    idx_last = get_index(["last name"])
+    idx_title = get_index(["job title", "title"])
+    idx_phone = get_index(["direct phone number", "direct phone", "company hq phone", "phone"])
+    idx_email = get_index(["email address", "email", "email_address"])
+    idx_linkedin = get_index(["linkedin contact profile url", "linkedin url", "linkedin"])
+    idx_city = get_index(["person city", "city"])
+    idx_state = get_index(["person state", "state"])
+
+    contacts = []
+    for r in rows[1:]:
+        if not any(r):
+            continue
+        first = r[idx_first] if (idx_first != -1 and idx_first < len(r)) else ""
+        last = r[idx_last] if (idx_last != -1 and idx_last < len(r)) else ""
+        name = f"{first} {last}".strip() or "Unknown Contact"
+        title = r[idx_title] if (idx_title != -1 and idx_title < len(r)) else "Executive"
+        phone = r[idx_phone] if (idx_phone != -1 and idx_phone < len(r)) else "N/A"
+        email = r[idx_email] if (idx_email != -1 and idx_email < len(r)) else "N/A"
+        linkedin = r[idx_linkedin] if (idx_linkedin != -1 and idx_linkedin < len(r)) else ""
+        city = r[idx_city] if (idx_city != -1 and idx_city < len(r)) else ""
+        state = r[idx_state] if (idx_state != -1 and idx_state < len(r)) else ""
+        location = f"{city}, {state}".strip(", ") or "N/A"
+        
+        contacts.append({
+            "name": name,
+            "title": title,
+            "phone": str(phone) if phone else "N/A",
+            "email": str(email) if email else "N/A",
+            "linkedin": str(linkedin) if linkedin else "",
+            "location": location
+        })
+    return contacts
+
+def _load_contacts_for_employer(employer_name):
+    import os
+    import config
+    import openpyxl
+    contacts = []
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        excel_path = os.path.join(base_dir, "Combined 401k Prospecting Plan.xlsx")
+        if os.path.exists(excel_path):
+            wb = openpyxl.load_workbook(excel_path, read_only=True)
+            sheet_names = wb.sheetnames
+            wb.close()
+            matched_sheet = _find_best_sheet_match(employer_name, sheet_names)
+            if matched_sheet:
+                contacts = _get_zoominfo_contacts(excel_path, matched_sheet)
+    except Exception as e:
+        print(f"[ContactsLoader] Warning mapping contacts: {e}")
+    return contacts
 
 
 
