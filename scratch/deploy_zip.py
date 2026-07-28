@@ -2,8 +2,8 @@ import os
 import zipfile
 import subprocess
 
-local_root = r"c:\Users\nicks\Documents\401k_crm"
-key_path = r"c:\Users\nicks\Documents\401k_crm\CRM-key-pair.pem"
+local_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+key_path = r"C:\Users\nicks\.gemini\antigravity\brain\57db76c8-9fe9-4e20-abc3-1ffcb924dbad\scratch\CRM-key-pair.pem"
 ip = "100.24.66.49"
 zip_name = "update.zip"
 zip_path = os.path.join(local_root, zip_name)
@@ -39,10 +39,9 @@ files_to_package = [
     "config.py",
     "scratch/check_api_key.py",
     "docker-compose.yml",
-    "api/trip.py",
+    "api/interactions.py",
     "utils/geocoder.py",
-    "frontend/src/components/TripMap.tsx",
-    "frontend/src/app/planner/page.tsx",
+    "frontend/src/app/interactions/page.tsx",
     "frontend/package.json",
     "frontend/package-lock.json",
     "scratch/enrich_addresses.py",
@@ -59,7 +58,10 @@ folders_to_package = [
 # Remote files to delete (since they are deleted locally)
 files_to_delete_remote = [
     "run_sync.py",
-    "check_prospects.py"
+    "check_prospects.py",
+    "api/trip.py",
+    "frontend/src/app/planner/page.tsx",
+    "frontend/src/components/TripMap.tsx"
 ]
 
 def create_zip():
@@ -136,8 +138,8 @@ def extract_and_restart():
         
     remote_script += """
     echo "--- Rebuilding and restarting containers ---"
-    sudo docker compose down
-    sudo docker compose up -d --build
+    sudo docker compose build --no-cache
+    sudo docker compose up -d
     
     echo "--- Checking running containers ---"
     sudo docker ps

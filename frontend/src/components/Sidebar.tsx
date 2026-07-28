@@ -92,10 +92,10 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
       description: 'Fiduciary Diagnostics'
     },
     { 
-      name: 'Trip Planner', 
-      href: '/planner', 
-      icon: MapPin,
-      description: 'Optimal Route Planner'
+      name: 'Interactions', 
+      href: '/interactions', 
+      icon: FileText,
+      description: 'Call & Interaction Logs'
     },
   ];
 

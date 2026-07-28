@@ -17,6 +17,7 @@ class Tenant(Base):
 
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     prospects = relationship("Prospect", back_populates="tenant", cascade="all, delete-orphan")
+    interactions = relationship("Interaction", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -55,6 +56,7 @@ class Prospect(Base):
     last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     tenant = relationship("Tenant", back_populates="prospects")
+    interactions = relationship("Interaction", back_populates="prospect", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "ein", name="unique_tenant_prospect_ein"),
@@ -84,5 +86,23 @@ class Form5500Audit(Base):
     dol_zip = Column(String(20), nullable=True)
     administrator_name = Column(String(255), nullable=True)
     computed_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Interaction(Base):
+    __tablename__ = "interactions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    prospect_id = Column(String(36), ForeignKey("pipeline_prospects.id", ondelete="CASCADE"), nullable=True)
+    contact_name = Column(String(255), nullable=False)
+    interaction_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    interaction_type = Column(String(50), default="Call")  # 'Call', 'Email', 'Meeting', 'Other'
+    notes = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tenant = relationship("Tenant", back_populates="interactions")
+    prospect = relationship("Prospect", back_populates="interactions")
+
+
 ProspectModel = Prospect
 AuditModel = Form5500Audit

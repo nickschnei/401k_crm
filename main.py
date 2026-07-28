@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from api import prospects, discovery, audits, billing, auth, agent, trip
+from api import prospects, discovery, audits, billing, auth, agent, interactions
 
 app = FastAPI(
     title="401(k) CRM SaaS API",
@@ -24,7 +24,10 @@ app.add_middleware(
 async def run_startup_migrations():
     """Dynamically checks schema tables and auto-adds password hashing support column (SQLite / PostgreSQL)."""
     from sqlalchemy import text
-    from api.database import AsyncSessionLocal
+    from api.database import AsyncSessionLocal, engine, Base
+    
+    print("[Startup] Ensuring all database tables exist (including interactions)...")
+    Base.metadata.create_all(bind=engine)
     
     print("[Startup] Scanning database schema constraints...")
     async with AsyncSessionLocal() as session:
@@ -88,7 +91,7 @@ app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discover
 app.include_router(audits.router, prefix="/api/v1/audits", tags=["Audits"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
 app.include_router(agent.router, prefix="/api/v1/agent", tags=["Agent"])
-app.include_router(trip.router, prefix="/api/v1/trip", tags=["Trip Planner"])
+app.include_router(interactions.router, prefix="/api/v1/interactions", tags=["Interactions"])
 
 @app.get("/health", tags=["System Health"])
 async def health_check():

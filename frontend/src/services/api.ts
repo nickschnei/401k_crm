@@ -73,21 +73,25 @@ export interface DiscoveryFiling {
   administrator: string;
   ein: string;
 }
-
-export interface TripStop {
+export interface Interaction {
+  id: string;
+  tenant_id: string;
+  prospect_id?: string;
+  employer_name?: string;
   ein?: string;
-  name: string;
-  address: string;
-  lat: number;
-  lon: number;
-  distance_from_last: number;
-  leg_duration_minutes: number;
+  contact_name: string;
+  interaction_date: string;
+  interaction_type: string;
+  notes: string;
+  created_at: string;
 }
 
-export interface TripResponse {
-  total_distance_miles: number;
-  total_duration_minutes: number;
-  stops: TripStop[];
+export interface CreateInteractionRequest {
+  prospect_id?: string;
+  contact_name: string;
+  interaction_type: string;
+  notes: string;
+  interaction_date?: string;
 }
 
 export const prospectsService = {
@@ -193,14 +197,23 @@ export const discoveryService = {
     return response.data;
   },
 };
-
-export const tripService = {
-  planTrip: async (req: {
-    start_location: string;
-    eins: string[];
-    round_trip?: boolean;
-  }) => {
-    const response = await api.post<TripResponse>('/trip/planner', req);
+export const interactionService = {
+  getInteractions: async (prospectId?: string) => {
+    const response = await api.get<Interaction[]>('/interactions/', {
+      params: prospectId ? { prospect_id: prospectId } : {},
+    });
+    return response.data;
+  },
+  createInteraction: async (req: CreateInteractionRequest) => {
+    const response = await api.post<Interaction>('/interactions/', req);
+    return response.data;
+  },
+  updateInteraction: async (id: string, req: Partial<CreateInteractionRequest>) => {
+    const response = await api.put<Interaction>(`/interactions/${id}`, req);
+    return response.data;
+  },
+  deleteInteraction: async (id: string) => {
+    const response = await api.delete<{ success: boolean; message: string }>(`/interactions/${id}`);
     return response.data;
   },
 };
