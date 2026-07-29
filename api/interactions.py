@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -59,7 +59,7 @@ async def get_interactions(
         )
         
         if prospect_id:
-            stmt = stmt.where(Interaction.prospect_id == prospect_id)
+            stmt = stmt.where(or_(Interaction.prospect_id == prospect_id, Prospect.ein == prospect_id))
             
         # Order by interaction_date descending
         stmt = stmt.order_by(desc(Interaction.interaction_date))
@@ -100,19 +100,25 @@ async def create_interaction(
         # Verify prospect belongs to tenant if prospect_id is provided
         employer_name = None
         ein = None
+        actual_prospect_id = None
         if body.prospect_id:
-            p_stmt = select(Prospect).where(Prospect.id == body.prospect_id).where(Prospect.tenant_id == tenant_id)
+            p_stmt = (
+                select(Prospect)
+                .where(or_(Prospect.id == body.prospect_id, Prospect.ein == body.prospect_id))
+                .where(Prospect.tenant_id == tenant_id)
+            )
             p_res = await db.execute(p_stmt)
             prospect = p_res.scalar_one_or_none()
             if not prospect:
                 raise HTTPException(status_code=404, detail="Prospect not found for this tenant.")
+            actual_prospect_id = prospect.id
             employer_name = prospect.employer_name
             ein = prospect.ein
             
         new_interaction = Interaction(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
-            prospect_id=body.prospect_id,
+            prospect_id=actual_prospect_id,
             contact_name=body.contact_name,
             interaction_date=body.interaction_date or datetime.now(),
             interaction_type=body.interaction_type,
