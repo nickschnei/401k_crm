@@ -13,6 +13,7 @@ files_to_package = [
     "api/audits.py",
     "api/auth.py",
     "api/database.py",
+    "api/models.py",
     "api/discovery.py",
     "api/prospects.py",
     "api/sync.py",
