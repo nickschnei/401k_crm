@@ -133,6 +133,28 @@ export const prospectsService = {
     const response = await api.post<Prospect>(`/prospects/${ein}/enrich`);
     return response.data;
   },
+
+  bulkUpdateStatus: async (eins: string[], status: string, notes?: string) => {
+    const response = await api.post<{ success: boolean; updated_count: number; message: string }>('/prospects/bulk-status', {
+      eins,
+      status,
+      notes,
+    });
+    return response.data;
+  },
+
+  importCsv: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<{ success: boolean; count: number; message: string }>('/prospects/import-csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  getCsvExportUrl: () => {
+    return `${API_BASE}/prospects/export-csv`;
+  },
 };
 
 export const auditsService = {

@@ -1,6 +1,7 @@
-import uuid
+import uuid, csv, io
 from sqlalchemy import text
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, File, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -424,3 +425,181 @@ async def enrich_prospect(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+# ---------------------------------------------------------
+# Item 5: Bulk Pipeline Management & CSV Import/Export
+# ---------------------------------------------------------
+
+class BulkStatusRequest(BaseModel):
+    eins: List[str]
+    status: str
+    notes: Optional[str] = ""
+
+@router.post("/bulk-status")
+async def bulk_update_prospect_status(
+    request: BulkStatusRequest,
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Batch update pipeline lead status for multiple prospects in a single request."""
+    if not request.eins:
+        raise HTTPException(status_code=400, detail="No prospect EINs provided.")
+        
+    tenant_id = await resolve_tenant_id(db, current_user)
+    clean_eins = ["".join(c for c in str(e) if c.isdigit()).zfill(9) for e in request.eins]
+
+    try:
+        stmt = select(Prospect).where(Prospect.ein.in_(clean_eins)).where(Prospect.tenant_id == tenant_id)
+        res = await db.execute(stmt)
+        prospects = res.scalars().all()
+
+        updated_count = 0
+        for p in prospects:
+            p.status = request.status
+            if request.notes:
+                p.notes = f"{p.notes}\n[Bulk Status Update]: {request.notes}".strip()
+            updated_count += 1
+
+        await db.commit()
+        return {
+            "success": True,
+            "updated_count": updated_count,
+            "message": f"Successfully updated {updated_count} prospects to '{request.status}'."
+        }
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Bulk status update failed: {str(e)}")
+
+@router.post("/import-csv")
+async def import_prospects_csv(
+    file: UploadFile = File(...),
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Import custom prospect lead lists from a CSV file into the CRM database."""
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files (.csv) are supported for import.")
+
+    tenant_id = await resolve_tenant_id(db, current_user)
+
+    try:
+        content_bytes = await file.read()
+        content_str = content_bytes.decode("utf-8-sig", errors="ignore")
+        reader = csv.DictReader(io.StringIO(content_str))
+
+        imported_count = 0
+        for row in reader:
+            # Flexible column headers handling
+            normalized_row = {k.strip().lower().replace(" ", "_"): str(v).strip() for k, v in row.items() if k}
+            
+            employer_name = normalized_row.get("employer_name") or normalized_row.get("company_name") or normalized_row.get("employer")
+            raw_ein = normalized_row.get("ein") or normalized_row.get("tax_id")
+            
+            if not employer_name or not raw_ein:
+                continue
+
+            clean_ein = "".join(c for c in str(raw_ein) if c.isdigit()).zfill(9)
+
+            # Parse numeric fields safely
+            raw_assets = normalized_row.get("total_assets") or normalized_row.get("assets") or "0"
+            raw_assets = raw_assets.replace("$", "").replace(",", "").strip()
+            total_assets = float(raw_assets) if raw_assets else 0.0
+
+            raw_part = normalized_row.get("participants") or normalized_row.get("active_participants") or "0"
+            raw_part = raw_part.replace(",", "").strip()
+            participants = int(float(raw_part)) if raw_part else 0
+
+            # Check if prospect exists
+            stmt = select(Prospect).where(Prospect.ein == clean_ein).where(Prospect.tenant_id == tenant_id)
+            res = await db.execute(stmt)
+            existing = res.scalar_one_or_none()
+
+            if existing:
+                existing.employer_name = employer_name
+                existing.total_assets = total_assets
+                existing.active_participants = participants
+                if normalized_row.get("status"):
+                    existing.status = normalized_row.get("status")
+                if normalized_row.get("industry"):
+                    existing.industry = normalized_row.get("industry")
+                if normalized_row.get("provider"):
+                    existing.provider = normalized_row.get("provider")
+                if normalized_row.get("contact_name"):
+                    existing.contact_name = normalized_row.get("contact_name")
+                if normalized_row.get("contact_email"):
+                    existing.contact_email = normalized_row.get("contact_email")
+                if normalized_row.get("contact_phone"):
+                    existing.contact_phone = normalized_row.get("contact_phone")
+            else:
+                new_p = Prospect(
+                    id=str(uuid.uuid4()),
+                    tenant_id=tenant_id,
+                    employer_name=employer_name,
+                    ein=clean_ein,
+                    total_assets=total_assets,
+                    active_participants=participants,
+                    status=normalized_row.get("status") or "Lead",
+                    industry=normalized_row.get("industry") or "Corporate",
+                    provider=normalized_row.get("provider") or "Unspecified",
+                    contact_name=normalized_row.get("contact_name"),
+                    contact_email=normalized_row.get("contact_email"),
+                    contact_phone=normalized_row.get("contact_phone"),
+                    notes=normalized_row.get("notes") or "Imported via CSV",
+                )
+                db.add(new_p)
+
+            imported_count += 1
+
+        await db.commit()
+        return {
+            "success": True,
+            "count": imported_count,
+            "message": f"Successfully imported/updated {imported_count} prospect leads."
+        }
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"CSV import error: {str(e)}")
+
+@router.get("/export-csv")
+async def export_prospects_csv(
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Stream a formatted CSV download of all prospect records for the active tenant."""
+    tenant_id = await resolve_tenant_id(db, current_user)
+    
+    stmt = select(Prospect).where(Prospect.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    prospects = res.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        "Employer Name", "EIN", "Status", "Total Assets", "Participants",
+        "Industry", "Provider", "Contact Name", "Contact Email", "Contact Phone", "Notes"
+    ])
+
+    for p in prospects:
+        writer.writerow([
+            p.employer_name or "",
+            p.ein or "",
+            p.status or "Lead",
+            p.total_assets or 0.0,
+            p.active_participants or 0,
+            p.industry or "",
+            p.provider or "",
+            p.contact_name or "",
+            p.contact_email or "",
+            p.contact_phone or "",
+            p.notes or ""
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=401k_crm_prospects.csv"}
+    )
+

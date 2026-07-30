@@ -21,9 +21,13 @@ import {
   FileText,
   Download,
   Layers,
-  FileCheck,
   Building2,
-  FileArchive
+  FileArchive,
+  Upload,
+  Check,
+  X,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import Link from 'next/link';
 import ProspectDrawer from '@/components/ProspectDrawer';
@@ -45,6 +49,23 @@ function PipelineContent() {
   // Prospect Drawer State
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Bulk Selection & CSV State
+  const [selectedEins, setSelectedEins] = useState<string[]>([]);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+
+  // Bulk Status Update Mutation
+  const bulkStatusMutation = useMutation({
+    mutationFn: ({ status }: { status: string }) =>
+      prospectsService.bulkUpdateStatus(selectedEins, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prospects'] });
+      setSelectedEins([]);
+    },
+  });
 
   const handleOpenDrawer = (prospect: Prospect) => {
     setSelectedProspect(prospect);
@@ -148,15 +169,34 @@ function PipelineContent() {
           </div>
         </div>
 
-        <button 
-          onClick={() => refetch()}
-          disabled={isLoading || isRefetching}
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-300 font-semibold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50 self-start md:self-auto"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || isLoading ? 'animate-spin' : ''}`} />
-          Force Reload
-        </button>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+            >
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </button>
+
+            <a
+              href={prospectsService.getCsvExportUrl()}
+              download
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </a>
+
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin text-blue-400' : ''}`} />
+              {isRefetching ? 'Syncing...' : 'Refresh Pipeline'}
+            </button>
+          </div>
+        </div>
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -334,6 +374,20 @@ function PipelineContent() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-950/50 border-b border-slate-800/80 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  <th className="px-4 py-4.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={prospects.length > 0 && selectedEins.length === prospects.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEins(prospects.map(p => p.ein));
+                        } else {
+                          setSelectedEins([]);
+                        }
+                      }}
+                      className="h-4 w-4 rounded bg-slate-950 border-slate-800 text-blue-500 focus:ring-blue-500/40 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-6 py-4.5">Employer & plan info</th>
                   <th className="px-6 py-4.5">Pipeline status</th>
                   <th className="px-6 py-4.5">Key provider (TPA)</th>
@@ -347,8 +401,24 @@ function PipelineContent() {
                 {prospects.map((prospect) => (
                   <tr 
                     key={prospect.ein} 
-                    className="hover:bg-slate-800/20 group transition-all duration-300 border-slate-800/40"
+                    className={`hover:bg-slate-800/20 group transition-all duration-300 border-slate-800/40 ${
+                      selectedEins.includes(prospect.ein) ? 'bg-blue-950/20' : ''
+                    }`}
                   >
+                    <td className="px-4 py-4.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedEins.includes(prospect.ein)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEins([...selectedEins, prospect.ein]);
+                          } else {
+                            setSelectedEins(selectedEins.filter(id => id !== prospect.ein));
+                          }
+                        }}
+                        className="h-4 w-4 rounded bg-slate-950 border-slate-800 text-blue-500 focus:ring-blue-500/40 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-6 py-4.5 space-y-1">
                       <button
                         onClick={() => handleOpenDrawer(prospect)}
@@ -477,6 +547,141 @@ function PipelineContent() {
           </div>
         )}
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedEins.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 border border-blue-500/40 shadow-2xl rounded-2xl px-6 py-3.5 flex items-center gap-6 animate-bounceIn">
+          <div className="flex items-center gap-2">
+            <span className="h-6 w-6 rounded-full bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center">
+              {selectedEins.length}
+            </span>
+            <span className="text-xs font-bold text-slate-200">
+              prospects selected
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-800" />
+
+          {/* Bulk Action Select */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400">Set Status:</span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  bulkStatusMutation.mutate({ status: e.target.value });
+                }
+              }}
+              disabled={bulkStatusMutation.isPending}
+              className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-blue-400 cursor-pointer focus:outline-none"
+            >
+              <option value="" disabled>-- Select New Status --</option>
+              <option value="Lead">Lead</option>
+              <option value="Researching">Researching</option>
+              <option value="Cold Called">Cold Called</option>
+              <option value="Meeting Set">Meeting Set</option>
+              <option value="Disqualified">Disqualified</option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => setSelectedEins([])}
+            className="text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Upload className="h-5 w-5 text-blue-400" />
+                Import Prospects CSV
+              </h3>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportFile(null);
+                  setImportMessage(null);
+                }}
+                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Upload a custom 401(k) prospect spreadsheet (.csv). Supported headers include: <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">employer_name</code>, <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">ein</code>, <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">total_assets</code>, <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">participants</code>, <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">provider</code>, <code className="text-blue-300 bg-slate-950 px-1 py-0.5 rounded">contact_name</code>, etc.
+            </p>
+
+            <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center space-y-3 transition-colors bg-slate-950/40">
+              <Upload className="h-8 w-8 text-slate-500 mx-auto" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-200">
+                  {importFile ? importFile.name : 'Select or drag CSV file'}
+                </p>
+                <p className="text-[11px] text-slate-500">Only .csv files supported</p>
+              </div>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600/20 file:text-blue-300 hover:file:bg-blue-600/30 cursor-pointer"
+              />
+            </div>
+
+            {importMessage && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <Check className="h-4 w-4 text-emerald-400" />
+                {importMessage}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const sampleCsv = "employer_name,ein,total_assets,participants,provider,contact_name,contact_email,contact_phone\nAcme Corp,123456789,15000000,250,Fidelity,Jane Doe,jane@acme.com,555-0199";
+                  const blob = new Blob([sampleCsv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = "sample_prospects_import.csv";
+                  a.click();
+                }}
+                className="text-xs font-bold text-slate-400 hover:text-slate-200 underline cursor-pointer"
+              >
+                Download Sample CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!importFile) return;
+                  setIsImporting(true);
+                  try {
+                    const res = await prospectsService.importCsv(importFile);
+                    setImportMessage(res.message);
+                    queryClient.invalidateQueries({ queryKey: ['prospects'] });
+                  } catch (err: any) {
+                    setImportMessage(err?.response?.data?.detail || 'Import failed.');
+                  } finally {
+                    setIsImporting(false);
+                  }
+                }}
+                disabled={!importFile || isImporting}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Upload & Process'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Prospect 360° Profile Drawer */}
       <ProspectDrawer
