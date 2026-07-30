@@ -98,6 +98,9 @@ class Interaction(Base):
     interaction_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     interaction_type = Column(String(50), default="Call")  # 'Call', 'Email', 'Meeting', 'Other'
     notes = Column(Text, nullable=False)
+    followup_date = Column(DateTime(timezone=True), nullable=True)
+    followup_completed = Column(Boolean, default=False)
+    followup_notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tenant = relationship("Tenant", back_populates="interactions")

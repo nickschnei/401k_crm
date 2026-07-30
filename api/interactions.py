@@ -20,12 +20,17 @@ class InteractionCreate(BaseModel):
     interaction_type: str  # 'Call', 'Email', 'Meeting', 'Other'
     notes: str
     interaction_date: Optional[datetime] = None
+    followup_date: Optional[datetime] = None
+    followup_notes: Optional[str] = None
 
 class InteractionUpdate(BaseModel):
     contact_name: Optional[str] = None
     interaction_type: Optional[str] = None
     notes: Optional[str] = None
     interaction_date: Optional[datetime] = None
+    followup_date: Optional[datetime] = None
+    followup_completed: Optional[bool] = None
+    followup_notes: Optional[str] = None
 
 class InteractionResponse(BaseModel):
     id: str
@@ -37,6 +42,9 @@ class InteractionResponse(BaseModel):
     interaction_date: datetime
     interaction_type: str
     notes: str
+    followup_date: Optional[datetime] = None
+    followup_completed: bool = False
+    followup_notes: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -80,6 +88,9 @@ async def get_interactions(
                     interaction_date=interaction.interaction_date,
                     interaction_type=interaction.interaction_type,
                     notes=interaction.notes,
+                    followup_date=interaction.followup_date,
+                    followup_completed=interaction.followup_completed or False,
+                    followup_notes=interaction.followup_notes,
                     created_at=interaction.created_at,
                 )
             )
@@ -93,11 +104,10 @@ async def create_interaction(
     current_user: ClerkUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Log a new interaction linked to a prospect."""
+    """Log a new interaction linked to a prospect, with optional follow-up reminder."""
     try:
         tenant_id = await resolve_tenant_id(db, current_user)
         
-        # Verify prospect belongs to tenant if prospect_id is provided
         employer_name = None
         ein = None
         actual_prospect_id = None
@@ -123,6 +133,9 @@ async def create_interaction(
             interaction_date=body.interaction_date or datetime.now(),
             interaction_type=body.interaction_type,
             notes=body.notes,
+            followup_date=body.followup_date,
+            followup_completed=False,
+            followup_notes=body.followup_notes,
         )
         
         db.add(new_interaction)
@@ -139,6 +152,9 @@ async def create_interaction(
             interaction_date=new_interaction.interaction_date,
             interaction_type=new_interaction.interaction_type,
             notes=new_interaction.notes,
+            followup_date=new_interaction.followup_date,
+            followup_completed=new_interaction.followup_completed or False,
+            followup_notes=new_interaction.followup_notes,
             created_at=new_interaction.created_at,
         )
     except HTTPException:
@@ -179,6 +195,12 @@ async def update_interaction(
             interaction.notes = body.notes
         if body.interaction_date is not None:
             interaction.interaction_date = body.interaction_date
+        if body.followup_date is not None:
+            interaction.followup_date = body.followup_date
+        if body.followup_completed is not None:
+            interaction.followup_completed = body.followup_completed
+        if body.followup_notes is not None:
+            interaction.followup_notes = body.followup_notes
             
         await db.commit()
         await db.refresh(interaction)
@@ -193,6 +215,62 @@ async def update_interaction(
             interaction_date=interaction.interaction_date,
             interaction_type=interaction.interaction_type,
             notes=interaction.notes,
+            followup_date=interaction.followup_date,
+            followup_completed=interaction.followup_completed or False,
+            followup_notes=interaction.followup_notes,
+            created_at=interaction.created_at,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/{id}/toggle-followup", response_model=InteractionResponse)
+async def toggle_followup(
+    id: str,
+    completed: Optional[bool] = Query(None),
+    current_user: ClerkUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Toggle or set the completion status of a follow-up reminder."""
+    try:
+        tenant_id = await resolve_tenant_id(db, current_user)
+        
+        stmt = (
+            select(Interaction, Prospect)
+            .outerjoin(Prospect, Interaction.prospect_id == Prospect.id)
+            .where(Interaction.id == id)
+            .where(Interaction.tenant_id == tenant_id)
+        )
+        res = await db.execute(stmt)
+        row = res.first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Interaction log not found.")
+            
+        interaction, prospect = row
+        
+        if completed is not None:
+            interaction.followup_completed = completed
+        else:
+            interaction.followup_completed = not (interaction.followup_completed or False)
+            
+        await db.commit()
+        await db.refresh(interaction)
+        
+        return InteractionResponse(
+            id=interaction.id,
+            tenant_id=interaction.tenant_id,
+            prospect_id=interaction.prospect_id,
+            employer_name=prospect.employer_name if prospect else None,
+            ein=prospect.ein if prospect else None,
+            contact_name=interaction.contact_name,
+            interaction_date=interaction.interaction_date,
+            interaction_type=interaction.interaction_type,
+            notes=interaction.notes,
+            followup_date=interaction.followup_date,
+            followup_completed=interaction.followup_completed or False,
+            followup_notes=interaction.followup_notes,
             created_at=interaction.created_at,
         )
     except HTTPException:

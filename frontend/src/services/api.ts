@@ -83,6 +83,9 @@ export interface Interaction {
   interaction_date: string;
   interaction_type: string;
   notes: string;
+  followup_date?: string;
+  followup_completed?: boolean;
+  followup_notes?: string;
   created_at: string;
 }
 
@@ -92,6 +95,9 @@ export interface CreateInteractionRequest {
   interaction_type: string;
   notes: string;
   interaction_date?: string;
+  followup_date?: string;
+  followup_completed?: boolean;
+  followup_notes?: string;
 }
 
 export const prospectsService = {
@@ -210,6 +216,12 @@ export const interactionService = {
   },
   updateInteraction: async (id: string, req: Partial<CreateInteractionRequest>) => {
     const response = await api.put<Interaction>(`/interactions/${id}`, req);
+    return response.data;
+  },
+  toggleFollowup: async (id: string, completed?: boolean) => {
+    const response = await api.patch<Interaction>(`/interactions/${id}/toggle-followup`, null, {
+      params: completed !== undefined ? { completed } : {},
+    });
     return response.data;
   },
   deleteInteraction: async (id: string) => {

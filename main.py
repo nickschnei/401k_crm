@@ -46,6 +46,20 @@ async def run_startup_migrations():
                 print("[Migration] Ensuring total_assets index exists on form_5500_audits...")
                 await session.execute(text("CREATE INDEX IF NOT EXISTS idx_form_5500_audits_total_assets ON form_5500_audits (total_assets DESC);"))
                 await session.commit()
+
+                # Migration for interactions follow-up fields
+                res = await session.execute(text("PRAGMA table_info(interactions);"))
+                interaction_cols = [r[1] for r in res.fetchall()]
+                if "followup_date" not in interaction_cols:
+                    print("[Migration] Adding followup_date column to SQLite interactions table...")
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_date DATETIME NULL;"))
+                if "followup_completed" not in interaction_cols:
+                    print("[Migration] Adding followup_completed column to SQLite interactions table...")
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_completed BOOLEAN DEFAULT 0;"))
+                if "followup_notes" not in interaction_cols:
+                    print("[Migration] Adding followup_notes column to SQLite interactions table...")
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_notes TEXT NULL;"))
+                await session.commit()
             elif dialect_name == "postgresql":
                 # PostgreSQL schema verification
                 res = await session.execute(text(
@@ -62,6 +76,18 @@ async def run_startup_migrations():
                 print("[Migration] Ensuring total_assets index exists on PostgreSQL form_5500_audits...")
                 await session.execute(text("CREATE INDEX IF NOT EXISTS idx_form_5500_audits_total_assets ON form_5500_audits (total_assets DESC);"))
                 await session.commit()
+
+                # Migration for interactions follow-up fields on PostgreSQL
+                res = await session.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='interactions' AND column_name='followup_date';"
+                ))
+                if not res.fetchone():
+                    print("[Migration] Adding followup columns to PostgreSQL interactions table...")
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_date TIMESTAMP WITH TIME ZONE NULL;"))
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_completed BOOLEAN DEFAULT FALSE;"))
+                    await session.execute(text("ALTER TABLE interactions ADD COLUMN followup_notes TEXT NULL;"))
+                    await session.commit()
         except Exception as e:
             print(f"[Migration] Auto-migration check warning: {e}")
 
