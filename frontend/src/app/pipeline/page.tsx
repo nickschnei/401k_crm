@@ -26,6 +26,7 @@ import {
   FileArchive
 } from 'lucide-react';
 import Link from 'next/link';
+import ProspectDrawer from '@/components/ProspectDrawer';
 
 function PipelineContent() {
   const queryClient = useQueryClient();
@@ -40,6 +41,15 @@ function PipelineContent() {
   // Advanced Filters
   const [providerFilter, setProviderFilter] = useState('All');
   const [administratorFilter, setAdministratorFilter] = useState('All');
+
+  // Prospect Drawer State
+  const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const handleOpenDrawer = (prospect: Prospect) => {
+    setSelectedProspect(prospect);
+    setIsDrawerOpen(true);
+  };
 
   // Fetch prospects query
   const { data: prospects = [], isLoading, isRefetching, refetch } = useQuery({
@@ -340,9 +350,15 @@ function PipelineContent() {
                     className="hover:bg-slate-800/20 group transition-all duration-300 border-slate-800/40"
                   >
                     <td className="px-6 py-4.5 space-y-1">
-                      <div className="font-bold text-white tracking-wide group-hover:text-blue-400 transition-colors">
+                      <button
+                        onClick={() => handleOpenDrawer(prospect)}
+                        className="font-bold text-white tracking-wide hover:text-blue-400 text-left transition-colors flex items-center gap-1.5 cursor-pointer group/name"
+                      >
                         {prospect.employer_name}
-                      </div>
+                        <span className="text-[10px] text-blue-400 opacity-0 group-hover/name:opacity-100 transition-opacity font-semibold">
+                          360° Profile →
+                        </span>
+                      </button>
                       <div className="text-[10px] text-slate-500 font-mono">
                         EIN: {prospect.ein.slice(0,2)}-{prospect.ein.slice(2)}
                       </div>
@@ -422,15 +438,26 @@ function PipelineContent() {
 
                     <td className="px-6 py-4.5 text-center">
                       <div className="flex items-center justify-center gap-2">
+                        {/* 360° Profile Drawer Button */}
+                        <button
+                          onClick={() => handleOpenDrawer(prospect)}
+                          className="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg text-blue-300 transition-all cursor-pointer font-bold text-xs flex items-center gap-1"
+                          title="Open 360° Prospect Profile Drawer"
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          360° View
+                        </button>
+
                         {/* Branded Fiduciary Audit PDF Download */}
                         <a
                           href={auditsService.getReportPdfUrl(prospect.ein)}
-                          download
-                          className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:bg-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold active:scale-95"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:bg-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-1 text-xs font-bold active:scale-95"
                           title="Download Branded Fiduciary Diagnostic PDF"
                         >
-                          <Download className="h-4 w-4" />
-                          Download Branded PDF
+                          <Download className="h-3.5 w-3.5" />
+                          PDF
                         </a>
 
                         {/* Full Audit View Page */}
@@ -450,6 +477,14 @@ function PipelineContent() {
           </div>
         )}
       </div>
+
+      {/* Prospect 360° Profile Drawer */}
+      <ProspectDrawer
+        prospect={selectedProspect}
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onStatusChange={() => refetch()}
+      />
     </div>
   );
 }

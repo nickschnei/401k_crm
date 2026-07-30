@@ -21,6 +21,7 @@ files_to_package = [
     "frontend/src/components/Sidebar.tsx",
     "frontend/src/components/AppLayout.tsx",
     "frontend/src/components/ChatSidebar.tsx",
+    "frontend/src/components/ProspectDrawer.tsx",
     "frontend/src/app/layout.tsx",
     "frontend/src/middleware.ts",
     "frontend/src/services/api.ts",
