@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { prospectsService, interactionService, Interaction, Prospect } from '@/services/api';
+import { prospectsService, interactionService, agentService, Interaction, Prospect, GenerateEmailResponse } from '@/services/api';
 import { 
   Search, 
   ChevronDown, 
@@ -27,7 +27,9 @@ import {
   Circle,
   AlertTriangle,
   Bell,
-  CheckSquare
+  CheckSquare,
+  Copy,
+  Check
 } from 'lucide-react';
 
 function InteractionsContent() {
@@ -38,6 +40,12 @@ function InteractionsContent() {
   const [typeFilter, setTypeFilter] = useState('All');
   const [prospectFilter, setProspectFilter] = useState('All');
   const [followupCategory, setFollowupCategory] = useState<'All' | 'Overdue' | 'Today' | 'Upcoming' | 'Completed'>('All');
+
+  // AI State
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [emailModalData, setEmailModalData] = useState<GenerateEmailResponse | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
 
   // Form State (Create)
   const [prospectId, setProspectId] = useState('');
@@ -420,10 +428,45 @@ function InteractionsContent() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <MessageSquare className="h-3.5 w-3.5" />
-                Interaction Notes
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Interaction Notes
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!notes.trim()) return;
+                    setIsPolishing(true);
+                    try {
+                      const selectedEmployer = prospects.find(p => p.ein === prospectId)?.employer_name;
+                      const res = await agentService.summarizeNotes(notes, contactName, selectedEmployer);
+                      setNotes(res.polished_notes);
+                      if (res.suggested_followup_days) {
+                        setEnableFollowup(true);
+                        const target = new Date();
+                        target.setDate(target.getDate() + res.suggested_followup_days);
+                        const isoStr = target.toISOString().slice(0, 16);
+                        setFollowupDate(isoStr);
+                        if (res.suggested_followup_note) setFollowupNotes(res.suggested_followup_note);
+                      }
+                    } catch (err) {
+                      console.error('AI Polish Error:', err);
+                    } finally {
+                      setIsPolishing(false);
+                    }
+                  }}
+                  disabled={isPolishing || !notes.trim()}
+                  className="text-[11px] font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer disabled:opacity-40"
+                >
+                  {isPolishing ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-purple-400" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 text-purple-400" />
+                  )}
+                  AI Polish & Extract Tasks
+                </button>
+              </div>
               <textarea
                 placeholder="Record details of what was discussed, follow-up items, etc."
                 value={notes}
@@ -599,26 +642,51 @@ function InteractionsContent() {
 
                           {/* Card Action Buttons */}
                           <div className="flex items-center gap-1.5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-300">
-                            <button
-                              onClick={() => openEditModal(item)}
-                              className="p-1.5 bg-slate-950 border border-slate-850 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
-                              title="Edit log"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm('Delete this interaction log?')) {
-                                  deleteMutation.mutate(item.id);
-                                }
-                              }}
-                              disabled={deleteMutation.isPending}
-                              className="p-1.5 bg-slate-950 border border-slate-850 rounded-lg text-slate-500 hover:text-rose-400 transition-all cursor-pointer disabled:opacity-50"
-                              title="Delete log"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                                     {/* Card Action Footer */}
+                      <div className="pt-2 border-t border-slate-800/40 flex items-center justify-between gap-2">
+                        <button
+                          onClick={async () => {
+                            setIsGeneratingEmail(true);
+                            try {
+                              const empName = prospects.find(p => p.ein === item.prospect_id)?.employer_name;
+                              const res = await agentService.generateFollowupEmail(
+                                item.interaction_type,
+                                item.notes,
+                                item.contact_name,
+                                empName
+                              );
+                              setEmailModalData(res);
+                            } catch (err) {
+                              console.error('Failed to generate AI email draft:', err);
+                            } finally {
+                              setIsGeneratingEmail(false);
+                            }
+                          }}
+                          disabled={isGeneratingEmail}
+                          className="px-2.5 py-1 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Sparkles className="h-3 w-3 text-purple-400" />
+                          AI Email Draft
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditModal(item)}
+                            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Interaction"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteMutation.mutate(item.id)}
+                            disabled={deleteMutation.isPending}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Interaction"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>       </div>
                         </div>
 
                         {/* Notes Body */}
@@ -853,6 +921,66 @@ function InteractionsContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* AI Follow-Up Email Draft Modal */}
+      {emailModalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-purple-500/30 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-400" />
+                Generated AI Follow-Up Email Draft
+              </h3>
+              <button
+                onClick={() => setEmailModalData(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subject</span>
+                <p className="text-sm font-bold text-slate-100 mt-0.5">{emailModalData.subject}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Body</span>
+                <div className="mt-1 p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">
+                  {emailModalData.body}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setEmailModalData(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${emailModalData.subject}\n\n${emailModalData.body}`);
+                  setCopiedEmail(true);
+                  setTimeout(() => setCopiedEmail(false), 2000);
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer"
+              >
+                {copiedEmail ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" /> Copied Email!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" /> Copy Email Draft
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

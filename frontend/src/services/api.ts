@@ -272,4 +272,48 @@ export interface UserProfileResponse {
   tenant_id?: string;
 }
 
+export interface SummarizeNotesResponse {
+  polished_notes: string;
+  key_takeaways: string[];
+  suggested_followup_days?: number;
+  suggested_followup_note?: string;
+}
+
+export interface GenerateEmailResponse {
+  subject: string;
+  body: string;
+}
+
+export interface NextActionResponse {
+  recommended_action: string;
+  reasoning: string;
+  urgency: string;
+}
+
+export const agentService = {
+  summarizeNotes: async (raw_notes: string, contact_name?: string, employer_name?: string) => {
+    const response = await api.post<SummarizeNotesResponse>('/agent/summarize-notes', {
+      raw_notes,
+      contact_name,
+      employer_name,
+    });
+    return response.data;
+  },
+
+  generateFollowupEmail: async (interaction_type: string, notes: string, contact_name?: string, employer_name?: string) => {
+    const response = await api.post<GenerateEmailResponse>('/agent/generate-followup-email', {
+      interaction_type,
+      notes,
+      contact_name,
+      employer_name,
+    });
+    return response.data;
+  },
+
+  getNextAction: async (ein: string) => {
+    const response = await api.post<NextActionResponse>('/agent/next-action', { ein });
+    return response.data;
+  },
+};
+
 export default api;

@@ -6,6 +6,7 @@ import {
   prospectsService, 
   auditsService, 
   interactionService, 
+  agentService,
   Prospect, 
   Interaction 
 } from '@/services/api';
@@ -96,6 +97,15 @@ export default function ProspectDrawer({
     queryFn: () => auditsService.generatePitch(cleanEin, prospect?.employer_name || ''),
     enabled: isOpen && !!cleanEin && activeTab === 'pitch',
   });
+
+  // Fetch AI Next Action Recommendation
+  const { data: nextAction } = useQuery({
+    queryKey: ['nextAction', cleanEin],
+    queryFn: () => agentService.getNextAction(cleanEin),
+    enabled: isOpen && !!cleanEin && activeTab === 'overview',
+  });
+
+  const [isPolishing, setIsPolishing] = useState(false);
 
   // Status Update Mutation
   const updateStatusMutation = useMutation({
@@ -295,6 +305,29 @@ export default function ProspectDrawer({
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6 animate-fadeIn">
+              {/* AI Strategic Sales Next Action Card */}
+              {nextAction && (
+                <div className="bg-gradient-to-r from-purple-950/40 via-slate-950 to-indigo-950/40 border border-purple-500/30 p-4 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                      AI Strategic Sales Recommendation
+                    </span>
+                    <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                      nextAction.urgency === 'High' 
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
+                        : nextAction.urgency === 'Medium'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    }`}>
+                      {nextAction.urgency} Urgency
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white tracking-tight">{nextAction.recommended_action}</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed font-sans">{nextAction.reasoning}</p>
+                </div>
+              )}
+
               {/* Financial Metrics Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-1">
@@ -425,14 +458,46 @@ export default function ProspectDrawer({
                     </select>
                   </div>
 
-                  <textarea
-                    placeholder="Log discussion details or meeting notes..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-850 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/50 resize-none"
-                    required
-                  />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Notes</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!notes.trim()) return;
+                          setIsPolishing(true);
+                          try {
+                            const res = await agentService.summarizeNotes(notes, contactName, prospect.employer_name);
+                            setNotes(res.polished_notes);
+                            if (res.suggested_followup_days) {
+                              setEnableFollowup(true);
+                              const target = new Date();
+                              target.setDate(target.getDate() + res.suggested_followup_days);
+                              setFollowupDate(target.toISOString().slice(0, 16));
+                              if (res.suggested_followup_note) setFollowupNotes(res.suggested_followup_note);
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          } finally {
+                            setIsPolishing(false);
+                          }
+                        }}
+                        disabled={isPolishing || !notes.trim()}
+                        className="text-[10px] font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30 cursor-pointer disabled:opacity-40"
+                      >
+                        {isPolishing ? <Loader2 className="h-3 w-3 animate-spin text-purple-400" /> : <Sparkles className="h-3 w-3 text-purple-400" />}
+                        AI Polish Notes
+                      </button>
+                    </div>
+                    <textarea
+                      placeholder="Log discussion details or meeting notes..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-850 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/50 resize-none"
+                      required
+                    />
+                  </div>
 
                   {/* Optional follow-up checkbox inside drawer */}
                   <div className="space-y-2">

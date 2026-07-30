@@ -332,3 +332,210 @@ async def chat_agent(
         stream_gemini_response(masked_prompt),
         media_type="text/plain"
     )
+
+# ---------------------------------------------------------
+# Item 3: AI Outreach Assistant & Note Summarization Endpoints
+# ---------------------------------------------------------
+
+class SummarizeNotesRequest(BaseModel):
+    raw_notes: str
+    contact_name: Optional[str] = None
+    employer_name: Optional[str] = None
+
+class SummarizeNotesResponse(BaseModel):
+    polished_notes: str
+    key_takeaways: list[str]
+    suggested_followup_days: Optional[int] = 3
+    suggested_followup_note: Optional[str] = "Follow up on fiduciary diagnostic review"
+
+class GenerateEmailRequest(BaseModel):
+    interaction_type: str
+    notes: str
+    contact_name: Optional[str] = None
+    employer_name: Optional[str] = None
+
+class GenerateEmailResponse(BaseModel):
+    subject: str
+    body: str
+
+class NextActionRequest(BaseModel):
+    ein: str
+
+class NextActionResponse(BaseModel):
+    recommended_action: str
+    reasoning: str
+    urgency: str
+
+@router.post("/summarize-notes", response_model=SummarizeNotesResponse)
+async def summarize_notes(
+    request: SummarizeNotesRequest,
+    current_user: ClerkUser = Depends(get_current_user)
+):
+    """
+    Format raw, unstructured call/meeting notes into clean executive takeaways,
+    and automatically extract follow-up action items.
+    """
+    raw = request.raw_notes.strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Notes content cannot be empty.")
+
+    contact = request.contact_name or "Contact"
+    company = request.employer_name or "Prospect Organization"
+
+    # Attempt Gemini API call if key is configured
+    api_key = getattr(config, "GEMINI_API_KEY", None)
+    if api_key:
+        try:
+            client = genai.Client(api_key=api_key)
+            prompt_text = f"""You are an executive 401(k) fiduciary sales assistant. Clean up and format the following raw notes from a meeting/call with {contact} at {company}.
+Raw notes: "{raw}"
+
+Return JSON matching this schema:
+{{
+  "polished_notes": "Clean, formatted paragraph summarizing the interaction.",
+  "key_takeaways": ["Takeaway 1", "Takeaway 2"],
+  "suggested_followup_days": 3,
+  "suggested_followup_note": "Short task description for follow-up"
+}}
+Return ONLY valid JSON."""
+            
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_text
+            )
+            text_resp = response.text or ""
+            if "```json" in text_resp:
+                text_resp = text_resp.split("```json")[1].split("```")[0].strip()
+            elif "```" in text_resp:
+                text_resp = text_resp.split("```")[1].strip()
+            
+            data = json.loads(text_resp)
+            return SummarizeNotesResponse(
+                polished_notes=data.get("polished_notes", raw),
+                key_takeaways=data.get("key_takeaways", ["Discussed plan fees and fiduciary oversight"]),
+                suggested_followup_days=data.get("suggested_followup_days", 3),
+                suggested_followup_note=data.get("suggested_followup_note", "Send fiduciary benchmarking proposal")
+            )
+        except Exception as err:
+            print(f"[AISummarize] Gemini call notice: {err}. Falling back to structured heuristic formatter.")
+
+    # Fallback heuristic cleanup logic
+    lines = [line.strip("-•* ").capitalize() for line in raw.split("\n") if line.strip()]
+    takeaways = lines if len(lines) > 0 else ["Reviewed current 401(k) plan structure and fee schedule"]
+    polished = f"Interaction with {contact} ({company}): " + ". ".join(lines)
+    if not polished.endswith("."):
+        polished += "."
+
+    return SummarizeNotesResponse(
+        polished_notes=polished,
+        key_takeaways=takeaways[:4],
+        suggested_followup_days=3,
+        suggested_followup_note=f"Follow up with {contact} regarding fee benchmarking proposal"
+    )
+
+@router.post("/generate-followup-email", response_model=GenerateEmailResponse)
+async def generate_followup_email(
+    request: GenerateEmailRequest,
+    current_user: ClerkUser = Depends(get_current_user)
+):
+    """
+    Generate a polished, personalized post-call or post-meeting follow-up email draft.
+    """
+    notes = request.notes.strip()
+    contact = request.contact_name or "Plan Sponsor"
+    company = request.employer_name or "your organization"
+
+    api_key = getattr(config, "GEMINI_API_KEY", None)
+    if api_key:
+        try:
+            client = genai.Client(api_key=api_key)
+            prompt_text = f"""Draft a professional follow-up email after a {request.interaction_type} with {contact} at {company}.
+Discussion notes: "{notes}"
+
+Return ONLY valid JSON matching this schema:
+{{
+  "subject": "Email Subject Line",
+  "body": "Full body text of the email..."
+}}"""
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_text
+            )
+            text_resp = response.text or ""
+            if "```json" in text_resp:
+                text_resp = text_resp.split("```json")[1].split("```")[0].strip()
+            elif "```" in text_resp:
+                text_resp = text_resp.split("```")[1].strip()
+                
+            data = json.loads(text_resp)
+            return GenerateEmailResponse(
+                subject=data.get("subject", f"Following Up — {company} 401(k) Plan Review"),
+                body=data.get("body", "")
+            )
+        except Exception as err:
+            print(f"[AIEmail] Gemini call notice: {err}. Using rule-based generator.")
+
+    subject = f"Thank you for your time — {company} 401(k) Fiduciary Follow-up"
+    body = f"""Dear {contact},
+
+Thank you for taking the time to speak today regarding the {company} 401(k) retirement plan.
+
+Based on our discussion:
+{notes}
+
+As discussed, I am preparing a side-by-side fiduciary diagnostic report comparing your plan's fee structure and investment menu against industry benchmarks.
+
+Please let me know if next Tuesday or Thursday works best for a brief 15-minute review of our findings.
+
+Best regards,
+
+[Your Name]
+Fiduciary Advisory Services
+"""
+    return GenerateEmailResponse(subject=subject, body=body)
+
+@router.post("/next-action", response_model=NextActionResponse)
+async def recommend_next_action(
+    request: NextActionRequest,
+    current_user: ClerkUser = Depends(get_current_user)
+):
+    """
+    Evaluate prospect audit flags and interaction logs to recommend the next best sales action.
+    """
+    clean_ein = "".join(c for c in str(request.ein) if c.isdigit()).zfill(9)
+    db = SessionLocal()
+    try:
+        prospect = db.query(Prospect).filter(Prospect.ein == clean_ein).first()
+        audit = db.query(Form5500Audit).filter(Form5500Audit.ein == clean_ein).first()
+        
+        has_fee_flag = bool(audit and audit.fee_red_flag)
+        has_part_flag = bool(audit and audit.participation_red_flag)
+        has_compliance_flag = bool(audit and audit.compliance_failed)
+        
+        if has_fee_flag and has_compliance_flag:
+            return NextActionResponse(
+                recommended_action="Schedule Urgent Fee & Compliance Review",
+                reasoning="Plan exhibits both high fee ratio drag (>60bps) and historic compliance testing failures. Immediate opportunity for fiduciary risk mitigation.",
+                urgency="High"
+            )
+        elif has_fee_flag:
+            return NextActionResponse(
+                recommended_action="Present Fee Benchmarking & Vendor Compression Audit",
+                reasoning="Administrative fee ratio exceeds peer benchmarks. Pitch vendor fee negotiation to reduce drag on employee savings.",
+                urgency="High"
+            )
+        elif has_part_flag:
+            return NextActionResponse(
+                recommended_action="Propose Auto-Enrollment & Plan Design Modernization",
+                reasoning="Employee participation rate is below 70%. Focus on automated enrollment designs and employee financial wellness tools.",
+                urgency="Medium"
+            )
+        else:
+            return NextActionResponse(
+                recommended_action="Conduct Annual Fiduciary Structural Check",
+                reasoning="Plan metrics align with general guidelines. Propose a periodic fiduciary checkup to ensure continued fee competitiveness as assets scale.",
+                urgency="Low"
+            )
+    finally:
+        db.close()
+
