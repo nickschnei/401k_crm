@@ -316,4 +316,47 @@ export const agentService = {
   },
 };
 
+export interface StageSummary {
+  stage: string;
+  count: number;
+  total_assets: number;
+  percentage: number;
+}
+
+export interface ProviderSummary {
+  provider: string;
+  count: number;
+  total_assets: number;
+  red_flag_count: number;
+}
+
+export interface ActivitySummary {
+  interaction_type: string;
+  count: number;
+}
+
+export interface FollowupHealth {
+  overdue: number;
+  today: number;
+  upcoming: number;
+  completed: number;
+}
+
+export interface AnalyticsSummaryResponse {
+  total_prospects: number;
+  total_assets: number;
+  overall_conversion_rate: number;
+  funnel: StageSummary[];
+  activities: ActivitySummary[];
+  providers: ProviderSummary[];
+  followup_health: FollowupHealth;
+}
+
+export const analyticsService = {
+  getSummary: async () => {
+    const response = await api.get<AnalyticsSummaryResponse>('/analytics/summary');
+    return response.data;
+  },
+};
+
 export default api;

@@ -14,7 +14,8 @@ import {
   LogOut,
   ChevronDown,
   MapPin,
-  FileText
+  FileText,
+  BarChart3
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { authService } from '@/services/api';
@@ -96,6 +97,12 @@ export default function Sidebar({ className = '', mobileOpen = false, onClose }:
       href: '/interactions', 
       icon: FileText,
       description: 'Call & Interaction Logs'
+    },
+    { 
+      name: 'Analytics', 
+      href: '/analytics', 
+      icon: BarChart3,
+      description: 'Conversion & Insights'
     },
   ];
 
